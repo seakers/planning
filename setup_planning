@@ -12,4 +12,8 @@ git checkout xgrants
 cd orekit
 mvn install
 
+cd ..
+cd ..
+gradle wrapper --gradle-version 7.0
+
 echo "Setup complete!"

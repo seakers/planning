@@ -7,7 +7,8 @@
 /gradlew.bat
 /gradlew
 /orekit/
-/gradle-wrapper.properties
 /src/main/main.iml
 /src/test/test.iml
 /src/test/resources/plannerData/tenthday/
+/src/test/greedyPlannerOutput/*
+/src/test/output/*
