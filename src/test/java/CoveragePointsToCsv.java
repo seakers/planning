@@ -8,8 +8,6 @@ import java.io.ObjectInputStream;
 import java.util.ArrayList;
 import java.util.Map;
 
-import static seakers.orekit.OverlapDelay.getListAsCsvString;
-
 public class CoveragePointsToCsv {
     public static String filepath;
     public static Map<GeodeticPoint, Double> globalRewardGrid;
@@ -49,5 +47,17 @@ public class CoveragePointsToCsv {
         } catch (Exception e) {
             System.out.println("Exception in loadObservations: "+e.getMessage());
         }
+    }
+
+    public static String getListAsCsvString(ArrayList<Double> list){
+
+        StringBuilder sb = new StringBuilder();
+        for(Double str:list){
+            if(sb.length() != 0){
+                sb.append(",");
+            }
+            sb.append(Double.toString(str));
+        }
+        return sb.toString();
     }
 }

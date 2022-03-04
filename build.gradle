@@ -33,5 +33,6 @@ dependencies {
     implementation 'org.hipparchus:hipparchus-core:1.5'
     implementation 'org.orekit:orekit:10.1'
     implementation 'seakers:orekit:1.0'
+    implementation group: 'org.geotools', name: 'gt-shapefile', version: '26.0'
 
 }

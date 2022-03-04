@@ -901,7 +901,7 @@ public class XPlanner {
             Layer imag_altimeter_track_layer = new FeatureLayer(imag_groundtrackSource, imag_style);
             map.addLayer(imag_altimeter_track_layer);
 
-            File rivers_file = getFile("./src/test/greedyPlannerOutput/GRWL_summaryStats.shp");
+            File rivers_file = getFile("./src/test/resources/GRWL_summaryStats.shp");
             FileDataStore rivers_store = FileDataStoreFinder.getDataStore(rivers_file);
             SimpleFeatureSource riversSource = rivers_store.getFeatureSource();
             Style river_style = SLD.createPolygonStyle(Color.BLACK,null,1.0f);

@@ -17,7 +17,7 @@ import org.orekit.time.TimeScale;
 import org.orekit.time.TimeScalesFactory;
 import org.orekit.utils.Constants;
 import org.orekit.utils.IERSConventions;
-import seakers.orekit.NearEarthNetwork;
+import seakers.orekit.object.communications.NearEarthNetwork;
 import seakers.orekit.analysis.Analysis;
 import seakers.orekit.analysis.Record;
 import seakers.orekit.analysis.ephemeris.GroundTrackAnalysis;
