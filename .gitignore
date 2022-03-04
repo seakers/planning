@@ -1,0 +1,9 @@
+/.idea/
+/.gradle/
+/gradle/
+/results/
+/CoverageDatabase/
+/build/
+/gradlew.bat
+/gradlew
+/orekit/

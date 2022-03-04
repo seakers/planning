@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Script to set up planning development environment
+
+echo "Starting setup!"
+
+git clone https://github.com/seakers/orekit.git
+git fetch
+git checkout xgrants
+
+cd orekit/orekit
+mvn install
+
+echo "Setup complete!"
