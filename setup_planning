@@ -5,10 +5,11 @@
 echo "Starting setup!"
 
 git clone https://github.com/seakers/orekit.git
+cd orekit
 git fetch
 git checkout xgrants
 
-cd orekit/orekit
+cd orekit
 mvn install
 
 echo "Setup complete!"
