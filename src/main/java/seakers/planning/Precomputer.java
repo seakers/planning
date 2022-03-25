@@ -53,7 +53,7 @@ public class Precomputer {
 
     public Precomputer(String plannerRepo) {
         plannerRepoFilePath = plannerRepo;
-        durationDays = 0.1;
+        durationDays = 1.0;
         OrekitConfig.init(4);
         File orekitData = new File("./src/main/resources/orekitResources");
         DataProvidersManager manager = DataProvidersManager.getInstance();
@@ -79,8 +79,8 @@ public class Precomputer {
         NadirRectangularFOV ssFOV = new NadirRectangularFOV(ssCrossFOVRadians,ssAlongFOVRadians,0.0,earthShape);
         Instrument ssImager = new Instrument("Smallsat imager", ssFOV, 100.0, 100.0);
         ssPayload.add(ssImager);
-        int r = 4;
-        int s = 4;
+        int r = 2;
+        int s = 2;
         for(int m = 0; m < r; m++) {
             for(int n = 0; n < s; n++) {
                 int pu = 360 / (r*s);

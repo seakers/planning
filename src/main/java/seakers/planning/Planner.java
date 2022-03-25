@@ -13,92 +13,143 @@ import java.util.Map;
 import java.util.Objects;
 
 public class Planner {
-    private String filepath;
+    private final String filepath;
     public Map<String, Map<String, TimeIntervalArray>> crosslinkEvents;
     public Map<String, TimeIntervalArray> downlinkEvents;
     public Map<String, ArrayList<Observation>> observationEvents;
     public Map<String, ArrayList<SatelliteAction>> currentPlans;
     public Map<String, ArrayList<SatelliteAction>> actionsTaken;
+    public Map<String, ArrayList<SatelliteAction>> naiveActionsTaken;
     public Map<String, Map<GeodeticPoint, Double>> localRewardGrids;
+    public Map<String, Double> rewardDownlinked;
+    public Map<String, Double> naiveRewardDownlinked;
     public Map<GeodeticPoint,Double> globalRewardGrid;
+    public Map<GeodeticPoint,Double> naiveGlobalRewardGrid;
     public Map<GeodeticPoint,Double> centralRewardGrid;
-    public ArrayList<Map<GeodeticPoint,Double>> globalRewardGridUpdates;
+    public Map<String, Map<String,String>> crosslinkInfo;
+    public ArrayList<Map<GeodeticPoint,ChlorophyllEvent>> globalRewardGridUpdates;
+    public ArrayList<Map<GeodeticPoint,ChlorophyllEvent>> naiveGlobalRewardGridUpdates;
+    public Map<String,ArrayList<ChlorophyllEvent>> downlinkedChlorophyllEvents;
+    public ArrayList<ChlorophyllEvent> naiveDownlinkedChlorophyllEvents;
+    public ArrayList<ChlorophyllEvent> crosslinkedChlorophyllEvents;
+    public Map<String,ArrayList<ChlorophyllEvent>> imagedChlorophyllEvents;
     public Map<String, SatelliteState> currentStates;
     public double totalImageProcessingTime;
+    public double chlReward;
+    private Map<String, Double> results;
 
-    public Planner() {
+    public Planner(Map<String,String> settings) {
         long start = System.nanoTime();
-        filepath = "./src/test/resources/plannerData/tenthday";
+        filepath = "./src/test/resources/plannerData/oneday";
         loadCrosslinks();
         loadDownlinks();
         loadObservations();
         loadRewardGrid();
+        results = new HashMap<>();
+        chlReward = 100;
         totalImageProcessingTime = 0.0;
         localRewardGrids = new HashMap<>();
         actionsTaken = new HashMap<>();
+        naiveActionsTaken = new HashMap<>();
         currentPlans = new HashMap<>();
         currentStates = new HashMap<>();
+        rewardDownlinked = new HashMap<>();
+        naiveRewardDownlinked = new HashMap<>();
         globalRewardGridUpdates = new ArrayList<>();
-        for (String sat : downlinkEvents.keySet()) {
+        naiveGlobalRewardGridUpdates = new ArrayList<>();
+        downlinkedChlorophyllEvents = new HashMap<>();
+        naiveDownlinkedChlorophyllEvents = new ArrayList<>();
+        crosslinkedChlorophyllEvents = new ArrayList<>();
+        imagedChlorophyllEvents = new HashMap<>();
+        ArrayList<String> satList = new ArrayList<>(downlinkEvents.keySet());
+        crosslinkInfo = crosslinkInfoInitialize(satList);
+        for (String sat : satList) {
             localRewardGrids.put(sat,globalRewardGrid);
             actionsTaken.put(sat,new ArrayList<>());
-            SatelliteState satelliteState = new SatelliteState(0,0, new ArrayList<>(),70.0,0.0,0.0,0.0);
+            SatelliteState satelliteState = new SatelliteState(0,0, new ArrayList<>(),70.0,0.0,0.0,0.0, new ArrayList<>(),new ArrayList<>(),new ArrayList<>());
             currentStates.put(sat,satelliteState);
-            MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat),downlinkEvents.get(sat),crosslinkEvents.get(sat),localRewardGrids.get(sat),currentStates.get(sat), 0.0);
+            MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat),downlinkEvents.get(sat),crosslinkEvents.get(sat),localRewardGrids.get(sat),currentStates.get(sat), crosslinkInfo.get(sat), settings);
             ArrayList<SatelliteAction> results = mctsPlanner.getResults();
             currentPlans.put(sat,results);
+            rewardDownlinked.put(sat,0.0);
+            imagedChlorophyllEvents.put(sat, new ArrayList<>());
+            downlinkedChlorophyllEvents.put(sat, new ArrayList<>());
             System.out.println("Done with initial plan for "+sat);
         }
-        System.out.println("Done with initial plans");
         double currentTime = 0.0;
 
-        String planFlag = "";
-        String replanSat = "";
-        while (currentTime < 86400.0*0.1) {
+        for (String sat : satList) {
+            NaivePlanExecutor planExec = new NaivePlanExecutor(currentStates.get(sat),currentTime,86400.0,currentPlans.get(sat), sat);
+            updateNaiveGlobalRewardGrid(planExec.getRewardGridUpdates());
+            naiveActionsTaken.put(sat,planExec.getActionsTaken());
+            naiveRewardDownlinked.put(sat, planExec.getRewardDownlinked());
+            naiveDownlinkedChlorophyllEvents.addAll(planExec.getChlorophyllEvents());
+        }
+
+        String planFlag;
+        while (currentTime < 86400.0) {
             System.out.println("Currently at: "+currentTime);
-            double earliestStopTime = 86400.0*0.1;
-            for (String sat : downlinkEvents.keySet()) {
-                PlanExecutor planExec = new PlanExecutor(currentStates.get(sat),currentTime,earliestStopTime,currentPlans.get(sat));
-                totalImageProcessingTime = totalImageProcessingTime + planExec.getImageProcessingTime();
+            double earliestStopTime = 86400.0;
+            for (String sat : satList) {
+                PlanExecutor planExec = new PlanExecutor(currentStates.get(sat),currentTime,earliestStopTime,currentPlans.get(sat), sat);
                 double planTerminationTime = planExec.getStopTime();
                 if(planTerminationTime < earliestStopTime) {
                     earliestStopTime = planTerminationTime;
-                    planFlag = planExec.getReplanFlag();
-                    replanSat = sat;
                 }
             }
-            for (String sat : downlinkEvents.keySet()) {
-                PlanExecutor planExec = new PlanExecutor(currentStates.get(sat),currentTime,earliestStopTime,currentPlans.get(sat));
-                totalImageProcessingTime = totalImageProcessingTime + planExec.getImageProcessingTime();
+            for (String sat : satList) {
+                PlanExecutor planExec = new PlanExecutor(currentStates.get(sat), currentTime, earliestStopTime, currentPlans.get(sat), sat);
                 ArrayList<SatelliteAction> actionsSoFar = actionsTaken.get(sat);
                 actionsSoFar.addAll(planExec.getActionsTaken());
-                actionsTaken.put(sat,actionsSoFar);
-                currentStates.put(sat,planExec.getReturnState());
-                if(Objects.equals(sat, replanSat)) {
-                    if (planFlag.equals("downlink")) {
-                        updateCentralRewardGrid(planExec.getRewardGridUpdates());
+                actionsTaken.put(sat, actionsSoFar);
+                currentStates.put(sat, planExec.getReturnState());
+                planFlag = planExec.getReplanFlag();
+                switch (planFlag) {
+                    case "":
+                        break;
+                    case "downlink": {
+                        updateCentralRewardGrid(planExec.getRewardGridUpdates(), earliestStopTime);
                         updateGlobalRewardGrid(planExec.getRewardGridUpdates());
-                        localRewardGrids.put(sat,centralRewardGrid);
-                        MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat),downlinkEvents.get(sat),crosslinkEvents.get(sat),localRewardGrids.get(sat),currentStates.get(sat), 0.0);
+                        rewardDownlinked.put(sat, rewardDownlinked.get(sat) + planExec.getRewardDownlinked());
+                        ArrayList<ChlorophyllEvent> tempList = new ArrayList<>(downlinkedChlorophyllEvents.get(sat));
+                        tempList.addAll(imagedChlorophyllEvents.get(sat));
+                        downlinkedChlorophyllEvents.put(sat, tempList);
+                        imagedChlorophyllEvents.put(sat, new ArrayList<>());
+                        localRewardGrids.put(sat, centralRewardGrid);
+                        MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), crosslinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                         ArrayList<SatelliteAction> results = mctsPlanner.getResults();
-                        currentPlans.put(sat,results);
-                    } else if (planFlag.equals("image")) {
-                        updateLocalRewardGrid(sat,planExec.getRewardGridUpdates());
+                        currentPlans.put(sat, results);
+                        break;
+                    }
+                    case "image": {
+                        updateLocalRewardGrid(sat, planExec.getRewardGridUpdates(), earliestStopTime);
                         updateGlobalRewardGrid(planExec.getRewardGridUpdates());
-                        MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat),downlinkEvents.get(sat),crosslinkEvents.get(sat),localRewardGrids.get(sat),currentStates.get(sat), 100.0);
+                        imagedChlorophyllEvents.get(sat).addAll(planExec.getChlorophyllEvents());
+                        for (String otherSat : crosslinkInfo.get(sat).keySet()) {
+                            crosslinkInfo.get(sat).put(otherSat, "new info");
+                        }
+                        MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), crosslinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                         ArrayList<SatelliteAction> results = mctsPlanner.getResults();
-                        currentPlans.put(sat,results);
-                    } else {
-                        System.out.println("Crosslink! Whoa!");
-                        updateLocalRewardGrid(planFlag,planExec.getRewardGridUpdates());
-                        updateLocalRewardGrid(sat,planExec.getRewardGridUpdates());
+                        currentPlans.put(sat, results);
+                        break;
+                    }
+                    default: {
+                        //System.out.println("Crosslink! Whoa!");
+                        updateLocalRewardGrid(planFlag, planExec.getRewardGridUpdates(), earliestStopTime);
+                        updateLocalRewardGrid(sat, planExec.getRewardGridUpdates(), earliestStopTime);
                         updateGlobalRewardGrid(planExec.getRewardGridUpdates());
-                        MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat),downlinkEvents.get(sat),crosslinkEvents.get(sat),localRewardGrids.get(sat),currentStates.get(sat), 0.0);
+                        crosslinkedChlorophyllEvents.addAll(planExec.getChlorophyllEvents());
+                        for (String otherSat : crosslinkInfo.get(planFlag).keySet()) {
+                            crosslinkInfo.get(planFlag).put(otherSat, "new info");
+                        }
+                        crosslinkInfo.get(sat).put(planFlag, "no new info");
+                        MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), crosslinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                         ArrayList<SatelliteAction> results = mctsPlanner.getResults();
-                        currentPlans.put(sat,results);
-                        MCTSPlanner crosslinkSatPlanner = new MCTSPlanner(observationEvents.get(planFlag),downlinkEvents.get(planFlag),crosslinkEvents.get(planFlag),localRewardGrids.get(planFlag),currentStates.get(planFlag), 0.0);
+                        currentPlans.put(sat, results);
+                        MCTSPlanner crosslinkSatPlanner = new MCTSPlanner(observationEvents.get(planFlag), downlinkEvents.get(planFlag), crosslinkEvents.get(planFlag), localRewardGrids.get(planFlag), currentStates.get(planFlag), crosslinkInfo.get(sat), settings);
                         ArrayList<SatelliteAction> crosslinkResults = crosslinkSatPlanner.getResults();
-                        currentPlans.put(planFlag,crosslinkResults);
+                        currentPlans.put(planFlag, crosslinkResults);
+                        break;
                     }
                 }
             }
@@ -106,43 +157,118 @@ public class Planner {
         }
         System.out.println("Done!");
         double totalReward = 0.0;
+        double naiveReward = 0.0;
+        int observationCount = 0;
+        int naiveObservationCount;
+        int chargeCount = 0;
+        int naiveChargeCount = 0;
+        int imagingCount = 0;
+        int naiveImagingCount = 0;
+        int downlinkCount = 0;
+        int naiveDownlinkCount = 0;
         for (String sat : downlinkEvents.keySet()) {
-            System.out.println("Actions taken for satellite "+sat+": ");
-            System.out.println(actionsTaken.get(sat));
+            //System.out.println("Actions taken for satellite "+sat+": ");
+//            System.out.println(actionsTaken.get(sat));
+//            for (SatelliteAction sa : actionsTaken.get(sat)) {
+//                if(sa!=null && sa.getLocation()!=null) {
+//                    GeodeticPoint observedGP = sa.getLocation();
+//                    totalReward = totalReward + globalRewardGrid.get(observedGP);
+//                    if(sa.getActionType().equals("imaging")) {
+//                        observationCount++;
+//                    }
+//                }
+//            }
+//            for (SatelliteAction sa : naiveActionsTaken.get(sat)) {
+//                if(sa!=null && sa.getLocation()!=null) {
+//                    GeodeticPoint observedGP = sa.getLocation();
+//                    naiveReward = naiveReward + naiveGlobalRewardGrid.get(observedGP);
+//                    if(sa.getActionType().equals("imaging")) {
+//                        naiveObservationCount++;
+//                    }
+//                }
+//            }
+//            for (ChlorophyllEvent ce : currentStates.get(sat).getChlorophyllEvents()) {
+//                System.out.println(ce.getEventLog());
+//            }
+//            for (String dl : currentStates.get(sat).getDownlinkLog()) {
+//                System.out.println(dl);
+//            }
+//            for (String cl : currentStates.get(sat).getCrosslinkLog()) {
+//                System.out.println(cl);
+//            }
+            totalReward = totalReward + rewardDownlinked.get(sat);
+            naiveReward = naiveReward + naiveRewardDownlinked.get(sat);
+            observationCount += downlinkedChlorophyllEvents.get(sat).size();
             for (SatelliteAction sa : actionsTaken.get(sat)) {
-                if(sa!=null && sa.getLocation()!=null) {
-                    GeodeticPoint observedGP = sa.getLocation();
-                    totalReward = totalReward + globalRewardGrid.get(observedGP);
+                if(sa.getActionType().equals("charge")) {
+                    chargeCount++;
+                } else if(sa.getActionType().equals("imaging")) {
+                    imagingCount++;
+                } else if(sa.getActionType().equals("downlink")) {
+                    downlinkCount++;
+                }
+            }
+            for (SatelliteAction sa : naiveActionsTaken.get(sat)) {
+                if(sa.getActionType().equals("charge")) {
+                    naiveChargeCount++;
+                } else if(sa.getActionType().equals("imaging")) {
+                    naiveImagingCount++;
+                } else if(sa.getActionType().equals("downlink")) {
+                    naiveDownlinkCount++;
                 }
             }
         }
+        System.out.println("Charge count: "+chargeCount);
+        System.out.println("Naive charge count: "+naiveChargeCount);
+        System.out.println("Imaging count: "+imagingCount);
+        System.out.println("Naive imaging count: "+naiveImagingCount);
+        System.out.println("Downlink count: "+downlinkCount);
+        System.out.println("Naive downlink count: "+naiveDownlinkCount);
+        naiveObservationCount = naiveDownlinkedChlorophyllEvents.size();
         System.out.println("Total reward: "+totalReward);
-        for (Map<GeodeticPoint,Double> updates : globalRewardGridUpdates) {
+        System.out.println("Naive reward: "+naiveReward);
+        System.out.println("Total count: "+observationCount);
+        System.out.println("Naive count: "+naiveObservationCount);
+        results.put("smart",totalReward);
+        results.put("naive",naiveReward);
+        results.put("chl count smart",(double)observationCount);
+        results.put("chl count naive",(double)naiveObservationCount);
+
+//        System.out.println("Total actions: "+observationCount);
+//        System.out.println("Naive actions: "+naiveObservationCount);
+        for (Map<GeodeticPoint,ChlorophyllEvent> updates : globalRewardGridUpdates) {
             for (GeodeticPoint gp : updates.keySet()) {
-                System.out.println("Update at: "+gp.toString()+" to value: "+updates.get(gp));
+                //System.out.println("Update at: "+gp.toString()+" to value: "+updates.get(gp));
             }
         }
-        System.out.println("Total image processing time: "+totalImageProcessingTime);
         long end = System.nanoTime();
         System.out.printf("Took %.4f sec\n", (end - start) / Math.pow(10, 9));
     }
 
-    public void updateGlobalRewardGrid(Map<GeodeticPoint,Double> updates) {
+    public void updateGlobalRewardGrid(Map<GeodeticPoint,ChlorophyllEvent> updates) {
         for(GeodeticPoint gp : updates.keySet()) {
-            globalRewardGrid.put(gp,updates.get(gp));
+            globalRewardGrid.put(gp,chlReward);
         }
         globalRewardGridUpdates.add(updates);
     }
-    public void updateCentralRewardGrid(Map<GeodeticPoint,Double> updates) {
+    public void updateNaiveGlobalRewardGrid(Map<GeodeticPoint,ChlorophyllEvent> updates) {
         for(GeodeticPoint gp : updates.keySet()) {
-            centralRewardGrid.put(gp,updates.get(gp));
+            naiveGlobalRewardGrid.put(gp,chlReward);
+        }
+        naiveGlobalRewardGridUpdates.add(updates);
+    }
+    public void updateCentralRewardGrid(Map<GeodeticPoint,ChlorophyllEvent> updates, double currentTime) {
+        for(GeodeticPoint gp : updates.keySet()) {
+            if(updates.get(gp).getEndTime() < currentTime) {
+                centralRewardGrid.put(gp,chlReward);
+            }
         }
     }
-
-    public void updateLocalRewardGrid(String sat, Map<GeodeticPoint,Double> updates) {
+    public void updateLocalRewardGrid(String sat, Map<GeodeticPoint,ChlorophyllEvent> updates, double currentTime) {
         Map<GeodeticPoint,Double> oldRewardGrid = localRewardGrids.get(sat);
         for(GeodeticPoint gp : updates.keySet()) {
-            oldRewardGrid.put(gp,updates.get(gp));
+            if(updates.get(gp).getEndTime() < currentTime)
+            oldRewardGrid.put(gp,chlReward);
         }
         localRewardGrids.put(sat,oldRewardGrid);
     }
@@ -278,6 +404,7 @@ public class Planner {
 
                 globalRewardGrid =  (Map<GeodeticPoint,Double>) oi.readObject();
                 globalRewardGrid.replaceAll((g, v) -> 1.0);
+                naiveGlobalRewardGrid = globalRewardGrid;
                 centralRewardGrid = globalRewardGrid;
 
                 oi.close();
@@ -287,6 +414,20 @@ public class Planner {
             System.out.println("Exception in loadRewardGrid: "+e.getMessage());
         }
     }
+
+    public Map<String,Map<String,String>> crosslinkInfoInitialize(ArrayList<String> satList) {
+        Map<String,Map<String,String>> crosslinkInfo = new HashMap<>();
+        for (String sat : satList) {
+            Map<String,String> crosslinkFlags = new HashMap<>();
+            for (String otherSat : satList) {
+                crosslinkFlags.put(otherSat,"no new info");
+            }
+            crosslinkInfo.put(sat,crosslinkFlags);
+        }
+        return crosslinkInfo;
+    }
+
+    public Map<String, Double> getResults() { return results; }
 
 
 }

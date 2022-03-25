@@ -2,6 +2,8 @@ package seakers.planning;
 
 import org.orekit.bodies.GeodeticPoint;
 
+import java.util.Comparator;
+
 public class SatelliteAction {
     private double tStart;
     private double tEnd;
@@ -64,4 +66,14 @@ public class SatelliteAction {
         }
         return printString;
     }
+    static class TimeComparator implements Comparator<SatelliteAction> {
+
+        // override the compare() method
+        public int compare(SatelliteAction a, SatelliteAction b) {
+            double aStartTime = a.gettStart();
+            double bStartTime = b.gettStart();
+            return Double.compare(aStartTime,bStartTime);
+        }
+    }
+
 }

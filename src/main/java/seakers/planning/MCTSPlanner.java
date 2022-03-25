@@ -11,26 +11,54 @@ public class MCTSPlanner {
     private Map<Key,Integer> N;
     private Map<Key,Double> Q;
     private double c;
+    private boolean downlinkEnabled;
+    private boolean crosslinkEnabled;
     private ArrayList<Observation> sortedObservations;
     private TimeIntervalArray downlinks;
     private Map<String, TimeIntervalArray> crosslinks;
-    private double priorityInfo;
+    private Map<String,String> priorityInfo;
     private double gamma;
     private int dSolveInit;
     private Map<GeodeticPoint,Double> rewardGrid;
     private int actionSpaceSize;
     private int nMaxSim;
 
-    public MCTSPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<String,TimeIntervalArray> crosslinks, Map<GeodeticPoint,Double> rewardGrid, SatelliteState initialState, double priorityInfo) {
+//    public MCTSPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<String,TimeIntervalArray> crosslinks, Map<GeodeticPoint,Double> rewardGrid, SatelliteState initialState, Map<String,String> priorityInfo) {
+//        this.sortedObservations = sortedObservations;
+//        this.downlinks = downlinks;
+//        this.crosslinks = crosslinks;
+//        this.rewardGrid = rewardGrid;
+//        this.gamma = 0.999;
+//        this.priorityInfo = priorityInfo;
+//        this.dSolveInit = 10;
+//        this.actionSpaceSize = 10;
+//        this.nMaxSim = 50;
+//        this.crosslinkEnabled = true;
+//        this.downlinkEnabled = false;
+//        this.c = 3;
+//        this.Q = new HashMap<>();
+//        this.N = new HashMap<>();
+//        this.V = new ArrayList<>();
+//        ArrayList<StateAction> stateActions = monteCarloTreeSearch(initialState);
+//        ArrayList<SatelliteAction> observations = new ArrayList<>();
+//        for (StateAction stateAction : stateActions) {
+//            observations.add(stateAction.getA());
+//        }
+//        results = observations;
+//    }
+
+    public MCTSPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<String,TimeIntervalArray> crosslinks, Map<GeodeticPoint,Double> rewardGrid, SatelliteState initialState, Map<String,String> priorityInfo, Map<String, String> settings) {
         this.sortedObservations = sortedObservations;
         this.downlinks = downlinks;
         this.crosslinks = crosslinks;
         this.rewardGrid = rewardGrid;
-        this.gamma = 0.995;
-        this.priorityInfo = priorityInfo;
-        this.dSolveInit = 10;
+        this.gamma = 0.999;
+        this.priorityInfo = new HashMap<>(priorityInfo);
+        this.dSolveInit = 4;
         this.actionSpaceSize = 4;
-        this.nMaxSim = 50;
+        this.nMaxSim = 5;
+        this.crosslinkEnabled = Boolean.parseBoolean(settings.get("crosslinkEnabled"));
+        this.downlinkEnabled = Boolean.parseBoolean(settings.get("downlinkEnabled"));
         this.c = 3;
         this.Q = new HashMap<>();
         this.N = new HashMap<>();
@@ -56,7 +84,7 @@ public class MCTSPlanner {
             for (Key sa : Q.keySet()) {
                 if(sa.getS().equals(s)) {
                     double value = Q.get(sa);
-                    if(value > max) {
+                    if(value >= max) {
                         max = value;
                         bestAction = sa.getA();
                     }
@@ -136,7 +164,7 @@ public class MCTSPlanner {
             selectedAction = chargeActions.get(random.nextInt(chargeActions.size()));
         }
         ArrayList<SatelliteAction> downlinkActions = new ArrayList<>();
-        if(s.getDataStored() > 50) {
+        if(s.getDataStored() > 50 && downlinkEnabled) {
             for (SatelliteAction a : actionSpace) {
                 if(a.getActionType().equals("downlink")) {
                     downlinkActions.add(a);
@@ -148,9 +176,9 @@ public class MCTSPlanner {
             selectedAction = downlinkActions.get(random.nextInt(downlinkActions.size()));
         }
         ArrayList<SatelliteAction> crosslinkActions = new ArrayList<>();
-        if(priorityInfo > 10) {
+        if(crosslinkEnabled) {
             for (SatelliteAction a : actionSpace) {
-                if(a.getActionType().equals("crosslink")) {
+                if(a.getActionType().equals("crosslink") && priorityInfo.get(a.getCrosslinkSat()).equals("new info")) {
                     crosslinkActions.add(a);
                 }
             }
@@ -179,25 +207,26 @@ public class MCTSPlanner {
 
     public double rewardFunction(SatelliteState s, SatelliteAction a){
         double score = 0.0;
-        switch(a.getActionType()) {
-            case "charge":
-                score = 0.0;
-                break;
-            case "imaging":
-                score = a.getReward()*Math.pow(gamma,(a.gettStart()-s.getT()));
-                break;
-            case "downlink":
-                double dataFracDownlinked = s.getDataStored() / ((a.gettEnd() - a.gettStart()) * 0.1);
-                score = s.getStoredImageReward()*dataFracDownlinked;
-                break;
-            case "crosslink":
-                score = priorityInfo;
-                break;
+        switch (a.getActionType()) {
+            case "charge" -> score = 0.0;
+            case "imaging" -> score = a.getReward() * Math.pow(gamma, (a.gettStart() - s.getT()));
+            case "downlink" -> {
+                double dataFracDownlinked = ((a.gettEnd() - a.gettStart()) * 0.1) / s.getDataStored();
+                score = s.getStoredImageReward() * dataFracDownlinked;
+            }
+            case "crosslink" -> {
+                if(priorityInfo.get(a.getCrosslinkSat()).equals("new info")) {
+                    score = 10.0;
+                    priorityInfo.put(a.getCrosslinkSat(),"no new info");
+                } else {
+                    score = 0.0;
+                }
+            }
         }
         if(s.getBatteryCharge() < 10) {
             score = -1000;
         }
-        if(s.getDataStored() > 100) {
+        if(s.getDataStored() > 100 && downlinkEnabled) {
             score = -1000;
         }
         return score;
@@ -206,35 +235,34 @@ public class MCTSPlanner {
     public SatelliteState transitionFunction(SatelliteState s, SatelliteAction a) {
         double t = a.gettEnd();
         double tPrevious = s.getT();
-        ArrayList<SatelliteAction> history = s.getHistory();
+        ArrayList<SatelliteAction> history = new ArrayList<>(s.getHistory());
         history.add(a);
         double storedImageReward = s.getStoredImageReward();
         double batteryCharge = s.getBatteryCharge();
         double dataStored = s.getDataStored();
         double currentAngle = s.getCurrentAngle();
         switch (a.getActionType()) {
-            case "charge":
-                batteryCharge = batteryCharge + (a.gettEnd() - s.getT()) * 5 / 3600; // Wh
-                break;
-            case "imaging":
-                batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * 10 / 3600;
-                dataStored = dataStored + 1.0;
+            case "charge" -> batteryCharge = batteryCharge + (a.gettEnd() - s.getT()) * 5 / 3600; // Wh
+            case "imaging" -> {
+                batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * 5 / 3600;
+                if (downlinkEnabled) {
+                    dataStored = dataStored + 1.0;
+                }
                 currentAngle = a.getAngle();
                 storedImageReward = storedImageReward + a.getReward();
-                // insert reward grid update here
-                break;
-            case "downlink":
-                batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * 10 / 3600;
-                double dataFracDownlinked = dataStored / ((a.gettEnd() - a.gettStart()) * 0.1);
+            }
+            // insert reward grid update here
+            case "downlink" -> {
+                batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * 5 / 3600; // TODO: I CHANGED THIS TO five
+                double dataFracDownlinked = ((a.gettEnd() - a.gettStart()) * 0.1) / dataStored;
                 dataStored = dataStored - (a.gettEnd() - a.gettStart()) * 0.1;
-                if(dataStored < 0) {
+                if (dataStored < 0) {
                     dataStored = 0.0;
+                    dataFracDownlinked = 1.0;
                 }
                 storedImageReward = storedImageReward - storedImageReward * dataFracDownlinked;
-                break;
-            case "crosslink":
-                batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * 10 / 3600;
-                break;
+            }
+            case "crosslink" -> batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * 5 / 3600;
         }
         return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward);
     }
@@ -255,46 +283,46 @@ public class MCTSPlanner {
             }
         }
         ArrayList<SatelliteAction> downlinkActions = new ArrayList<>();
-        for (int i = 0; i < downlinks.getRiseAndSetTimesList().length; i=i+2) {
-            if(downlinks.getRiseAndSetTimesList()[i] > currentTime && downlinkActions.size() < actionSpaceSize) {
-                SatelliteAction downlinkAction = new SatelliteAction(downlinks.getRiseAndSetTimesList()[i],downlinks.getRiseAndSetTimesList()[i+1],null,"downlink");
-                SatelliteAction chargeAction = new SatelliteAction(downlinks.getRiseAndSetTimesList()[i],downlinks.getRiseAndSetTimesList()[i+1],null,"charge");
-                possibleActions.add(downlinkAction);
-                possibleActions.add(chargeAction);
-                downlinkActions.add(downlinkAction);
-            } else if (downlinks.getRiseAndSetTimesList()[i] < currentTime && downlinks.getRiseAndSetTimesList()[i+1] > currentTime && downlinkActions.size() < actionSpaceSize) {
-                SatelliteAction downlinkAction = new SatelliteAction(currentTime,downlinks.getRiseAndSetTimesList()[i+1],null,"downlink");
-                SatelliteAction chargeAction = new SatelliteAction(currentTime,downlinks.getRiseAndSetTimesList()[i+1],null,"charge");
-                possibleActions.add(downlinkAction);
-                possibleActions.add(chargeAction);
-                downlinkActions.add(downlinkAction);
-            }
-        }
-        ArrayList<SatelliteAction> crosslinkActions = new ArrayList<>();
-        for (String sat : crosslinks.keySet()) {
-            double[] crosslinkTimes = crosslinks.get(sat).getRiseAndSetTimesList();
-            for (int i = 0; i < crosslinkTimes.length; i=i+2) {
-                if(crosslinkTimes[i] >= currentTime && crosslinkActions.size() < actionSpaceSize) {
-                    SatelliteAction crosslinkAction = new SatelliteAction(crosslinkTimes[i],crosslinkTimes[i+1],null,"crosslink",sat);
-                    SatelliteAction chargeAction = new SatelliteAction(crosslinkTimes[i],crosslinkTimes[i+1],null,"charge");
-                    possibleActions.add(crosslinkAction);
-                    possibleActions.add(chargeAction);
-                    crosslinkActions.add(crosslinkAction);
+        if(downlinkEnabled) {
+            for (int i = 0; i < downlinks.getRiseAndSetTimesList().length; i = i + 2) {
+                if (downlinks.getRiseAndSetTimesList()[i] > currentTime && downlinkActions.size() < actionSpaceSize) {
+                    SatelliteAction downlinkAction = new SatelliteAction(downlinks.getRiseAndSetTimesList()[i], downlinks.getRiseAndSetTimesList()[i+1], null, "downlink");
+                    possibleActions.add(downlinkAction);
+                    downlinkActions.add(downlinkAction);
+                } else if (downlinks.getRiseAndSetTimesList()[i] < currentTime && downlinks.getRiseAndSetTimesList()[i + 1] > currentTime && downlinkActions.size() < actionSpaceSize) {
+                    SatelliteAction downlinkAction = new SatelliteAction(currentTime, downlinks.getRiseAndSetTimesList()[i+1], null, "downlink");
+                    possibleActions.add(downlinkAction);
+                    downlinkActions.add(downlinkAction);
                 }
             }
         }
-
-        return possibleActions;
+        ArrayList<SatelliteAction> crosslinkActions = new ArrayList<>();
+        if(crosslinkEnabled) {
+            for (String sat : crosslinks.keySet()) {
+                double[] crosslinkTimes = crosslinks.get(sat).getRiseAndSetTimesList();
+                for (int i = 0; i < crosslinkTimes.length; i = i + 2) {
+                    if (crosslinkTimes[i] >= currentTime && crosslinkActions.size() < actionSpaceSize) {
+                        SatelliteAction crosslinkAction = new SatelliteAction(crosslinkTimes[i], crosslinkTimes[i]+5.0, null, "crosslink", sat);
+                        SatelliteAction chargeAction = new SatelliteAction(crosslinkTimes[i], crosslinkTimes[i]+5.0, null, "charge");
+                        possibleActions.add(crosslinkAction);
+                        possibleActions.add(chargeAction);
+                        crosslinkActions.add(crosslinkAction);
+                    }
+                }
+            }
+        }
+        possibleActions.sort(new SatelliteAction.TimeComparator());
+        if(possibleActions.size() < actionSpaceSize) {
+            return possibleActions;
+        } else {
+            return new ArrayList<>(possibleActions.subList(0, actionSpaceSize));
+        }
     }
 
     public boolean canSlew(double angle1, double angle2, double time1, double time2){
         double slewTorque = 4*Math.abs(angle2-angle1)*0.05/Math.pow(Math.abs(time2-time1),2);
         double maxTorque = 4e-3;
-        if (slewTorque > maxTorque) {
-            return false;
-        } else {
-            return true;
-        }
+        return !(slewTorque > maxTorque);
     }
     
     public ArrayList<SatelliteAction> getResults() {
