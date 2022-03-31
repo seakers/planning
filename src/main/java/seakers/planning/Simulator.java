@@ -31,6 +31,7 @@ public class Planner {
     public ArrayList<Map<GeodeticPoint,ChlorophyllEvent>> naiveGlobalRewardGridUpdates;
     public Map<String,ArrayList<ChlorophyllEvent>> downlinkedChlorophyllEvents;
     public ArrayList<ChlorophyllEvent> naiveDownlinkedChlorophyllEvents;
+    public ArrayList<ChlorophyllEvent> totalDownlinkedChlorophyllEvents;
     public ArrayList<ChlorophyllEvent> crosslinkedChlorophyllEvents;
     public Map<String,ArrayList<ChlorophyllEvent>> imagedChlorophyllEvents;
     public Map<String, SatelliteState> currentStates;
@@ -59,6 +60,7 @@ public class Planner {
         naiveGlobalRewardGridUpdates = new ArrayList<>();
         downlinkedChlorophyllEvents = new HashMap<>();
         naiveDownlinkedChlorophyllEvents = new ArrayList<>();
+        totalDownlinkedChlorophyllEvents = new ArrayList<>();
         crosslinkedChlorophyllEvents = new ArrayList<>();
         imagedChlorophyllEvents = new HashMap<>();
         ArrayList<String> satList = new ArrayList<>(downlinkEvents.keySet());
@@ -68,8 +70,8 @@ public class Planner {
             actionsTaken.put(sat,new ArrayList<>());
             SatelliteState satelliteState = new SatelliteState(0,0, new ArrayList<>(),70.0,0.0,0.0,0.0, new ArrayList<>(),new ArrayList<>(),new ArrayList<>());
             currentStates.put(sat,satelliteState);
-            MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat),downlinkEvents.get(sat),crosslinkEvents.get(sat),localRewardGrids.get(sat),currentStates.get(sat), crosslinkInfo.get(sat), settings);
-            ArrayList<SatelliteAction> results = mctsPlanner.getResults();
+            GreedyPlanner GreedyPlanner = new GreedyPlanner(observationEvents.get(sat),downlinkEvents.get(sat),crosslinkEvents.get(sat),localRewardGrids.get(sat),currentStates.get(sat), crosslinkInfo.get(sat), settings);
+            ArrayList<SatelliteAction> results = GreedyPlanner.getResults();
             currentPlans.put(sat,results);
             rewardDownlinked.put(sat,0.0);
             imagedChlorophyllEvents.put(sat, new ArrayList<>());
@@ -85,7 +87,30 @@ public class Planner {
             naiveRewardDownlinked.put(sat, planExec.getRewardDownlinked());
             naiveDownlinkedChlorophyllEvents.addAll(planExec.getChlorophyllEvents());
         }
+        PlanExecutor tempPlanExec = new PlanExecutor(currentStates.get("smallsat00"),currentTime,86400.0,currentPlans.get("smallsat00"),"smallsat00");
+        ArrayList<GeodeticPoint> chlorophyllLocations = tempPlanExec.getChlorophyllLocations();
+        Map<GeodeticPoint,Double> omniscientGrid = new HashMap<>(globalRewardGrid);
 
+//        for (String sat : satList) {
+//            for(Observation obs : observationEvents.get(sat)) {
+//                for(GeodeticPoint gp : chlorophyllLocations) {
+//                    if(getDist(gp,obs.getObservationPoint()) < 0.00001) {
+//                        //System.out.println("Sat "+sat+" sees "+gp+" at "+obs.getObservationStart());
+//                        omniscientGrid.put(obs.getObservationPoint(),chlReward);
+//                    }
+//                }
+//            }
+//        }
+//        for (String sat : satList) {
+//            GreedyPlanner GreedyPlanner = new GreedyPlanner(observationEvents.get(sat), downlinkEvents.get(sat), crosslinkEvents.get(sat), omniscientGrid, currentStates.get(sat), crosslinkInfo.get(sat), settings);
+//            ArrayList<SatelliteAction> results = GreedyPlanner.getResults();
+//            currentPlans.put(sat, results);
+//            NaivePlanExecutor planExec = new NaivePlanExecutor(currentStates.get(sat),currentTime,86400.0,currentPlans.get(sat), sat);
+//            updateGlobalRewardGrid(planExec.getRewardGridUpdates());
+//            actionsTaken.put(sat,planExec.getActionsTaken());
+//            rewardDownlinked.put(sat, planExec.getRewardDownlinked());
+//            totalDownlinkedChlorophyllEvents.addAll(planExec.getChlorophyllEvents());
+//        }
         String planFlag;
         while (currentTime < 86400.0) {
             System.out.println("Currently at: "+currentTime);
@@ -116,8 +141,8 @@ public class Planner {
                         downlinkedChlorophyllEvents.put(sat, tempList);
                         imagedChlorophyllEvents.put(sat, new ArrayList<>());
                         localRewardGrids.put(sat, centralRewardGrid);
-                        MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), crosslinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
-                        ArrayList<SatelliteAction> results = mctsPlanner.getResults();
+                        GreedyPlanner GreedyPlanner = new GreedyPlanner(observationEvents.get(sat), downlinkEvents.get(sat), crosslinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
+                        ArrayList<SatelliteAction> results = GreedyPlanner.getResults();
                         currentPlans.put(sat, results);
                         break;
                     }
@@ -128,13 +153,12 @@ public class Planner {
                         for (String otherSat : crosslinkInfo.get(sat).keySet()) {
                             crosslinkInfo.get(sat).put(otherSat, "new info");
                         }
-                        MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), crosslinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
-                        ArrayList<SatelliteAction> results = mctsPlanner.getResults();
+                        GreedyPlanner GreedyPlanner = new GreedyPlanner(observationEvents.get(sat), downlinkEvents.get(sat), crosslinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
+                        ArrayList<SatelliteAction> results = GreedyPlanner.getResults();
                         currentPlans.put(sat, results);
                         break;
                     }
                     default: {
-                        //System.out.println("Crosslink! Whoa!");
                         updateLocalRewardGrid(planFlag, planExec.getRewardGridUpdates(), earliestStopTime);
                         updateLocalRewardGrid(sat, planExec.getRewardGridUpdates(), earliestStopTime);
                         updateGlobalRewardGrid(planExec.getRewardGridUpdates());
@@ -143,10 +167,10 @@ public class Planner {
                             crosslinkInfo.get(planFlag).put(otherSat, "new info");
                         }
                         crosslinkInfo.get(sat).put(planFlag, "no new info");
-                        MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), crosslinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
-                        ArrayList<SatelliteAction> results = mctsPlanner.getResults();
+                        GreedyPlanner GreedyPlanner = new GreedyPlanner(observationEvents.get(sat), downlinkEvents.get(sat), crosslinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
+                        ArrayList<SatelliteAction> results = GreedyPlanner.getResults();
                         currentPlans.put(sat, results);
-                        MCTSPlanner crosslinkSatPlanner = new MCTSPlanner(observationEvents.get(planFlag), downlinkEvents.get(planFlag), crosslinkEvents.get(planFlag), localRewardGrids.get(planFlag), currentStates.get(planFlag), crosslinkInfo.get(sat), settings);
+                        GreedyPlanner crosslinkSatPlanner = new GreedyPlanner(observationEvents.get(planFlag), downlinkEvents.get(planFlag), crosslinkEvents.get(planFlag), localRewardGrids.get(planFlag), currentStates.get(planFlag), crosslinkInfo.get(sat), settings);
                         ArrayList<SatelliteAction> crosslinkResults = crosslinkSatPlanner.getResults();
                         currentPlans.put(planFlag, crosslinkResults);
                         break;
@@ -199,6 +223,12 @@ public class Planner {
             totalReward = totalReward + rewardDownlinked.get(sat);
             naiveReward = naiveReward + naiveRewardDownlinked.get(sat);
             observationCount += downlinkedChlorophyllEvents.get(sat).size();
+            for (ChlorophyllEvent ce : imagedChlorophyllEvents.get(sat)) {
+                //System.out.println("Chlorophyll event imaged by sat "+sat+" at "+ce.getEventLog());
+            }
+            for (ChlorophyllEvent ce : downlinkedChlorophyllEvents.get(sat)) {
+                //System.out.println("Chlorophyll event downlinked by sat "+sat+" at "+ce.getEventLog());
+            }
             for (SatelliteAction sa : actionsTaken.get(sat)) {
                 if(sa.getActionType().equals("charge")) {
                     chargeCount++;
@@ -241,6 +271,11 @@ public class Planner {
                 //System.out.println("Update at: "+gp.toString()+" to value: "+updates.get(gp));
             }
         }
+        for (Map<GeodeticPoint,ChlorophyllEvent> updates : naiveGlobalRewardGridUpdates) {
+            for (GeodeticPoint gp : updates.keySet()) {
+               // System.out.println("Naive update at: "+gp.toString()+" to value: "+updates.get(gp));
+            }
+        }
         long end = System.nanoTime();
         System.out.printf("Took %.4f sec\n", (end - start) / Math.pow(10, 9));
     }
@@ -259,15 +294,16 @@ public class Planner {
     }
     public void updateCentralRewardGrid(Map<GeodeticPoint,ChlorophyllEvent> updates, double currentTime) {
         for(GeodeticPoint gp : updates.keySet()) {
-            if(updates.get(gp).getEndTime() < currentTime) {
-                centralRewardGrid.put(gp,chlReward);
-            }
+//            if(updates.get(gp).getEndTime() < currentTime) {
+//                centralRewardGrid.put(gp,chlReward);
+//            }
+            centralRewardGrid.put(gp,chlReward);
         }
     }
     public void updateLocalRewardGrid(String sat, Map<GeodeticPoint,ChlorophyllEvent> updates, double currentTime) {
         Map<GeodeticPoint,Double> oldRewardGrid = localRewardGrids.get(sat);
         for(GeodeticPoint gp : updates.keySet()) {
-            if(updates.get(gp).getEndTime() < currentTime)
+//            if(updates.get(gp).getEndTime() < currentTime)
             oldRewardGrid.put(gp,chlReward);
         }
         localRewardGrids.put(sat,oldRewardGrid);
@@ -404,8 +440,8 @@ public class Planner {
 
                 globalRewardGrid =  (Map<GeodeticPoint,Double>) oi.readObject();
                 globalRewardGrid.replaceAll((g, v) -> 1.0);
-                naiveGlobalRewardGrid = globalRewardGrid;
-                centralRewardGrid = globalRewardGrid;
+                naiveGlobalRewardGrid = new HashMap<>(globalRewardGrid);
+                centralRewardGrid = new HashMap<>(globalRewardGrid);
 
                 oi.close();
                 fi.close();
@@ -429,5 +465,8 @@ public class Planner {
 
     public Map<String, Double> getResults() { return results; }
 
+    public double getDist(GeodeticPoint gp1, GeodeticPoint gp2) {
+        return Math.sqrt(Math.pow(gp1.getLatitude()-gp2.getLatitude(),2)+Math.pow(gp1.getLongitude()-gp2.getLongitude(),2));
+    }
 
 }
