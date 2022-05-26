@@ -19,8 +19,8 @@ repositories {
     maven {
         url "https://download.osgeo.org/webdav/geotools/"
         }
-    maven { url "https://maven.geotoolkit.org/" }
     maven { url "https://repo.osgeo.org/repository/release/" }
+    //maven { url "https://repo.osgeo.org/repository/snapshot/" }
     mavenCentral()
     mavenLocal()
 }
@@ -36,5 +36,8 @@ dependencies {
     implementation group: 'org.geotools', name: 'gt-shapefile', version: '26.0'
     // https://mvnrepository.com/artifact/org.apache.commons/commons-collections4
     implementation 'org.apache.commons:commons-collections4:4.4'
+    // https://mvnrepository.com/artifact/com.googlecode.json-simple/json-simple
+    implementation 'com.googlecode.json-simple:json-simple:1.1.1'
+
 
 }

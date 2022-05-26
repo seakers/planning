@@ -14,6 +14,7 @@ public class RuleBasedPlanner {
     private Map<String, TimeIntervalArray> crosslinks;
     private Map<String,String> priorityInfo;
     private Map<GeodeticPoint,Double> rewardGrid;
+    private Map<String,String> settings;
 
     public RuleBasedPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<String,TimeIntervalArray> crosslinks, Map<GeodeticPoint,Double> rewardGrid, SatelliteState initialState, Map<String,String> priorityInfo, Map<String, String> settings) {
         this.sortedObservations = sortedObservations;
@@ -23,6 +24,7 @@ public class RuleBasedPlanner {
         this.priorityInfo = new HashMap<>(priorityInfo);
         this.crosslinkEnabled = Boolean.parseBoolean(settings.get("crosslinkEnabled"));
         this.downlinkEnabled = Boolean.parseBoolean(settings.get("downlinkEnabled"));
+        this.settings = settings;
         ArrayList<StateAction> stateActions = greedyPlan(initialState);
         ArrayList<SatelliteAction> observations = new ArrayList<>();
         for (StateAction stateAction : stateActions) {
@@ -60,17 +62,21 @@ public class RuleBasedPlanner {
         switch (a.getActionType()) {
             case "imaging" -> {
                 currentAngle = a.getAngle();
-                dataStored += 1.0;
+                batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower"));
+                batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("cameraOnPower"));
+                dataStored += 1.0; // 1 Mbps per picture
             }
-            // insert reward grid update here
             case "downlink" -> {
-                dataStored = dataStored - (a.gettEnd() - a.gettStart()) * 0.1;
+                dataStored = dataStored - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("downlinkSpeedMbps"));
+                batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower"));
+                batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("downlinkOnPower"));
                 if (dataStored < 0) {
                     dataStored = 0;
                 }
             }
             case "crosslink" -> {
-                //System.out.println("crosslink!");
+                batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower"));
+                batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("crosslinkOnPower"));
             }
         }
         return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward);
@@ -80,8 +86,12 @@ public class RuleBasedPlanner {
         ArrayList<SatelliteAction> possibleActions = getActionSpace(s);
         SatelliteAction bestAction = null;
         SatelliteAction crosslinkAction;
-        double estimatedReward = 113000;
+        double estimatedReward = 80000;
         double maximum = 0.0;
+        if(s.getBatteryCharge() < 15) {
+            bestAction = new SatelliteAction(s.getT(),s.getT()+60.0,null,"charge");
+            return bestAction;
+        }
         outerloop:
         for (SatelliteAction a : possibleActions) {
             switch(a.getActionType()) {
@@ -93,7 +103,7 @@ public class RuleBasedPlanner {
                 }
                 case("imaging") -> {
                     double rho = (86400.0-a.gettEnd())/(86400.0);
-                    double e = Math.pow(rho,5) * estimatedReward;
+                    double e = Math.pow(rho,1) * estimatedReward;
                     double adjustedReward = a.getReward() + e;
                     if(adjustedReward > maximum) {
                         bestAction = a;
@@ -111,7 +121,6 @@ public class RuleBasedPlanner {
                 break;
             }
         }
-
         return bestAction;
     }
 
@@ -154,7 +163,7 @@ public class RuleBasedPlanner {
 
     public boolean canSlew(double angle1, double angle2, double time1, double time2){
         double slewTorque = 4*Math.abs(angle2-angle1)*0.05/Math.pow(Math.abs(time2-time1),2);
-        double maxTorque = 4e-3;
+        double maxTorque = Double.parseDouble(settings.get("maxTorque"));
         return !(slewTorque > maxTorque);
     }
 

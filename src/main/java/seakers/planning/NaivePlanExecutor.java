@@ -28,12 +28,9 @@ import static java.lang.Double.NaN;
 import static java.lang.Double.parseDouble;
 
 public class NaivePlanExecutor {
-    private double stopTime;
-    private String replanFlag;
     private String satelliteName;
     private ArrayList<SatelliteAction> actionsTaken;
     private boolean doneFlag;
-    private SatelliteState returnState;
     private Map<GeodeticPoint, ChlorophyllEvent> rewardGridUpdates;
     private double imageProcessingTime;
     private double rewardDownlinked;
@@ -41,15 +38,16 @@ public class NaivePlanExecutor {
     Map<GeodeticPoint,Double> currentChlorophyll = new HashMap<>();
     private ArrayList<ChlorophyllEvent> storedChlorophyllEvents = new ArrayList<>();
     private ArrayList<ChlorophyllEvent> downlinkedChlorophyllEvents = new ArrayList<>();
+    Map<String,String> settings;
 
-    public NaivePlanExecutor(SatelliteState s, double startTime, double endTime, ArrayList<SatelliteAction> actionsToTake, String satelliteName) {
+    public NaivePlanExecutor(SatelliteState s, double startTime, double endTime, ArrayList<SatelliteAction> actionsToTake, String satelliteName, Map<String,String> settings) {
         doneFlag = false;
         imageProcessingTime = 0.0;
         rewardDownlinked = 0.0;
         rewardGridUpdates = new HashMap<>();
         actionsTaken = new ArrayList<>();
-        replanFlag = "";
         this.satelliteName = satelliteName;
+        this.settings = settings;
         double currentTime = startTime;
         loadChlorophyll();
         while(!doneFlag) {
@@ -61,17 +59,13 @@ public class NaivePlanExecutor {
                 }
             }
             if(actionToTake == null) {
-                stopTime = endTime;
-                returnState = s;
                 break;
             }
             actionsTaken.add(actionToTake);
             s = transitionFunction(s,actionToTake);
-            returnState = s;
             currentTime = s.getT();
             if(currentTime > endTime) {
                 doneFlag = true;
-                stopTime = currentTime;
             }
         }
     }
@@ -88,25 +82,24 @@ public class NaivePlanExecutor {
         double dataStored = s.getDataStored();
         double currentAngle = s.getCurrentAngle();
         switch (a.getActionType()) {
-            case "charge" -> batteryCharge = batteryCharge + (a.gettEnd() - s.getT()) * 5 / 3600; // Wh
+            case "charge" -> batteryCharge = batteryCharge + (a.gettEnd() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600; // Wh
             case "imaging" -> {
-                batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * 5 / 3600;
+                batteryCharge = batteryCharge + (a.gettStart() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600;
+                batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("cameraOnPower")) / 3600;
                 dataStored = dataStored + 1.0;
                 currentAngle = a.getAngle();
                 storedImageReward = storedImageReward + 1.0;
                 boolean interestingImage = processImage(a.gettStart(), a.getLocation(), satelliteName);
-//                Random random = new Random();
-//                double interestingDouble = random.nextDouble();
-//                rewardGridUpdates.put(a.getLocation(),100.0);
                 if (interestingImage) {
                     satChlorophyllEvents.addAll(storedChlorophyllEvents);
-                    storedImageReward = storedImageReward + 99.0;
+                    storedImageReward = storedImageReward + Double.parseDouble(settings.get("chlBonusReward"));
                 }
             }
             case "downlink" -> {
-                batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * 5 / 3600;
-                double dataFracDownlinked = ((a.gettEnd() - a.gettStart()) * 0.1) / dataStored; // data is in Mb, 0.1 Mbps
-                dataStored = dataStored - (a.gettEnd() - a.gettStart()) * 0.1;
+                batteryCharge = batteryCharge + (a.gettStart() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600;
+                batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("downlinkOnPower")) / 3600;
+                double dataFracDownlinked = ((a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("downlinkSpeedMbps"))) / dataStored; // data is in Mb, 0.1 Mbps
+                dataStored = dataStored - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("downlinkSpeedMbps"));
                 if (dataStored < 0) {
                     dataStored = 0;
                     dataFracDownlinked = 1.0;
@@ -121,7 +114,8 @@ public class NaivePlanExecutor {
                 storedChlorophyllEvents.clear();
             }
             case "crosslink" -> {
-                batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * 10 / 3600;
+                batteryCharge = batteryCharge + (a.gettStart() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600;
+                batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("crosslinkOnPower")) / 3600;
                 currentCrosslinkLog.add("Crosslink from time " + a.gettStart() + " to time " + a.gettEnd() + " to satellite " + a.getCrosslinkSat());
             }
         }
@@ -155,7 +149,7 @@ public class NaivePlanExecutor {
             double mean = parseDouble(chlorophyllBaseline.get(2));
             double sd = parseDouble(chlorophyllBaseline.get(3));
             GeodeticPoint chloroPoint = new GeodeticPoint(lat, lon, 0.0);
-            chlorophyllLimits.put(chloroPoint, mean + sd*2);
+            chlorophyllLimits.put(chloroPoint, mean + sd);
         }
         try (BufferedReader br = new BufferedReader(new FileReader("./src/test/resources/chlorophyll_recent.csv"))) {
             String line;
@@ -240,23 +234,9 @@ public class NaivePlanExecutor {
 
     public double getRewardDownlinked() { return rewardDownlinked; }
 
-    public double getStopTime() {
-        return stopTime;
-    }
-
-    public String getReplanFlag() {
-        return replanFlag;
-    }
-
     public ArrayList<SatelliteAction> getActionsTaken() {
         return actionsTaken;
     }
-
-    public SatelliteState getReturnState() {
-        return returnState;
-    }
-
-    public double getImageProcessingTime() { return imageProcessingTime; }
 
     public ArrayList<ChlorophyllEvent> getChlorophyllEvents() { return downlinkedChlorophyllEvents; }
 }

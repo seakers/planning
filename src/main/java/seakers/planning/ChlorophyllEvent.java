@@ -24,6 +24,8 @@ public class ChlorophyllEvent {
         eventLog.add(inputString);
     }
 
+    public GeodeticPoint getLocation() { return location; }
+
     public double getEndTime() { return endTime; }
 
     public ArrayList<String> getEventLog() { return eventLog; }

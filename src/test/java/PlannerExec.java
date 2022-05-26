@@ -1,46 +1,36 @@
-import seakers.planning.Planner;
+import seakers.planning.Simulator;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class PlannerExec {
     public static void main(String[] args) {
-        Map<String,String> allSettings = new HashMap<>();
-        allSettings.put("crosslinkEnabled","true");
-        allSettings.put("downlinkEnabled","true");
-        Map<String,String> downSettings = new HashMap<>();
-        downSettings.put("crosslinkEnabled","false");
-        downSettings.put("downlinkEnabled","true");
-        double allSmartSum = 0;
-        double allNaiveSum = 0;
-        double allSmartCount = 0;
-        double allNaiveCount = 0;
-        double downSmartSum = 0;
-        double downNaiveSum = 0;
-        double downSmartCount = 0;
-        double downNaiveCount = 0;
-        int numSims = 10;
+        Map<String,String> settings = new HashMap<>();
+        settings.put("crosslinkEnabled","true");
+        settings.put("downlinkEnabled","true");
+        settings.put("downlinkSpeedMbps","0.1");
+        settings.put("cameraOnPower","0.0");
+        settings.put("chargePower","5.0");
+        settings.put("downlinkOnPower","0.0");
+        settings.put("crosslinkOnPower","0.0");
+        settings.put("chlBonusReward","99.0");
+        settings.put("maxTorque","4e-3");
+        settings.put("planner","dumbMcts");
+        double smartSum = 0;
+        double naiveSum = 0;
+        double smartCount = 0;
+        double naiveCount = 0;
+        int numSims = 1;
         for (int i = 0; i < numSims; i++) {
-            System.out.println("All");
-            Planner allPlanner = new Planner(downSettings);
-            System.out.println("Down");
-            Planner downPlanner = new Planner(downSettings);
-            allSmartSum += allPlanner.getResults().get("smart");
-            allNaiveSum += allPlanner.getResults().get("naive");
-            allSmartCount += allPlanner.getResults().get("chl count smart");
-            allNaiveCount += allPlanner.getResults().get("chl count naive");
-            downSmartSum += downPlanner.getResults().get("smart");
-            downNaiveSum += downPlanner.getResults().get("naive");
-            downSmartCount += downPlanner.getResults().get("chl count smart");
-            downNaiveCount += downPlanner.getResults().get("chl count naive");
+            Simulator simulator = new Simulator(settings);
+            smartSum += simulator.getResults().get("smart");
+            naiveSum += simulator.getResults().get("naive");
+            smartCount += simulator.getResults().get("chl count smart");
+            naiveCount += simulator.getResults().get("chl count naive");
         }
-        System.out.println("allSmart avg: "+allSmartSum/numSims);
-        System.out.println("allNaive avg: "+allNaiveSum/numSims);
-        System.out.println("allSmartCount avg: "+allSmartCount/numSims);
-        System.out.println("allNaiveCount avg: "+allNaiveCount/numSims);
-        System.out.println("downSmart avg: "+downSmartSum/numSims);
-        System.out.println("downNaive avg: "+downNaiveSum/numSims);
-        System.out.println("downSmartCount avg: "+downSmartCount/numSims);
-        System.out.println("downNaiveCount avg: "+downNaiveCount/numSims);
+        System.out.println("smart avg: "+smartSum/numSims);
+        System.out.println("naive avg: "+naiveSum/numSims);
+        System.out.println("smartCount avg: "+smartCount/numSims);
+        System.out.println("naiveCount avg: "+naiveCount/numSims);
     }
 }

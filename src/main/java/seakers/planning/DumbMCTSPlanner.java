@@ -25,6 +25,7 @@ public class DumbMCTSPlanner {
     private Map<GeodeticPoint,Double> rewardGrid;
     private int actionSpaceSize;
     private int nMaxSim;
+    private Map<String,String> settings;
 
 //    public MCTSPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<String,TimeIntervalArray> crosslinks, Map<GeodeticPoint,Double> rewardGrid, SatelliteState initialState, Map<String,String> priorityInfo) {
 //        this.sortedObservations = sortedObservations;
@@ -55,14 +56,15 @@ public class DumbMCTSPlanner {
         this.downlinks = downlinks;
         this.crosslinks = crosslinks;
         this.rewardGrid = rewardGrid;
+        this.settings = settings;
         this.gamma = 0.999;
         this.priorityInfo = new HashMap<>(priorityInfo);
-        this.dSolveInit = 4;
+        this.dSolveInit = 10;
         this.actionSpaceSize = 4;
-        this.nMaxSim = 5;
+        this.nMaxSim = 50;
         this.crosslinkEnabled = Boolean.parseBoolean(settings.get("crosslinkEnabled"));
         this.downlinkEnabled = Boolean.parseBoolean(settings.get("downlinkEnabled"));
-        this.c = 3;
+        this.c = 1;
         this.Q = new HashMap<>();
         this.N = new HashMap<>();
         this.V = new ArrayList<>();
@@ -90,6 +92,7 @@ public class DumbMCTSPlanner {
                     if(value >= max) {
                         max = value;
                         bestAction = sa.getA();
+                        //System.out.println(bestAction.getReward());
                     }
                 }
             }
@@ -97,7 +100,7 @@ public class DumbMCTSPlanner {
                 break;
             }
             StateAction stateAction = new StateAction(s,bestAction);
-            s = transitionFunction(initialState,bestAction);
+            s = transitionFunction(s,bestAction);
             resultList.add(stateAction);
             moreActions = !getActionSpace(s).isEmpty();
         }
@@ -187,7 +190,7 @@ public class DumbMCTSPlanner {
     public double rewardFunction(SatelliteState s, SatelliteAction a){
         double score = 0.0;
         switch (a.getActionType()) {
-            case "imaging" -> score = a.getReward() * Math.pow(gamma, (a.gettStart() - s.getT()));
+            case "imaging" -> score = 0;
             case "downlink" -> {
                 score = s.getStoredImageReward();
             }
@@ -205,12 +208,21 @@ public class DumbMCTSPlanner {
         double dataStored = s.getDataStored();
         double currentAngle = s.getCurrentAngle();
         switch (a.getActionType()) {
+            case "charge" -> batteryCharge = batteryCharge + (a.gettEnd() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600; // Wh
             case "imaging" -> {
                 currentAngle = a.getAngle();
+                batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower"));
+                batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("cameraOnPower"));
                 storedImageReward = storedImageReward + a.getReward();
             }
             // insert reward grid update here
             case "downlink" -> {
+                dataStored = dataStored - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("downlinkSpeedMbps"));
+                batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower"));
+                batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("downlinkOnPower"));
+                if (dataStored < 0) {
+                    dataStored = 0;
+                }
                 storedImageReward = 0.0;
             }
         }
@@ -254,7 +266,7 @@ public class DumbMCTSPlanner {
 
     public boolean canSlew(double angle1, double angle2, double time1, double time2){
         double slewTorque = 4*Math.abs(angle2-angle1)*0.05/Math.pow(Math.abs(time2-time1),2);
-        double maxTorque = 4e-3;
+        double maxTorque = Double.parseDouble(settings.get("maxTorque"));
         return !(slewTorque > maxTorque);
     }
     
