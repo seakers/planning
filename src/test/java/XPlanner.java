@@ -126,7 +126,7 @@ public class XPlanner {
                 imagers.add(smallsat);
             }
         }
-        double duration = 0.1;
+        double duration = 1;
         Map<Double,Map<GeodeticPoint,Double>> covPointRewards = new HashMap<>();
         if(!new File("./src/test/resources/coverageRewardsUnweighted").exists()) {
             covPointRewards = loadCoveragePoints();

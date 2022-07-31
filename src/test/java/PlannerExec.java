@@ -6,7 +6,7 @@ import java.util.Map;
 public class PlannerExec {
     public static void main(String[] args) {
         Map<String,String> settings = new HashMap<>();
-        settings.put("crosslinkEnabled","true");
+        settings.put("crosslinkEnabled","false");
         settings.put("downlinkEnabled","true");
         settings.put("downlinkSpeedMbps","0.1");
         settings.put("cameraOnPower","0.0");
@@ -15,7 +15,7 @@ public class PlannerExec {
         settings.put("crosslinkOnPower","0.0");
         settings.put("chlBonusReward","99.0");
         settings.put("maxTorque","4e-3");
-        settings.put("planner","dumbMcts");
+        settings.put("planner","ruleBased");
         double smartSum = 0;
         double naiveSum = 0;
         double smartCount = 0;

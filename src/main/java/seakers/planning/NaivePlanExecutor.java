@@ -104,19 +104,16 @@ public class NaivePlanExecutor {
                     dataStored = 0;
                     dataFracDownlinked = 1.0;
                 }
-                rewardDownlinked += storedImageReward * dataFracDownlinked;
-                storedImageReward = storedImageReward - storedImageReward * dataFracDownlinked;
-                if(storedImageReward < 0) {
-                    storedImageReward = 0;
-                }
+                rewardDownlinked += storedImageReward;
+                storedImageReward = 0.0;
+//                rewardDownlinked += storedImageReward * dataFracDownlinked;
+//                storedImageReward = storedImageReward - storedImageReward * dataFracDownlinked;
+//                if(storedImageReward < 0) {
+//                    storedImageReward = 0;
+//                }
                 currentDownlinkLog.add("Downlink from time " + a.gettStart() + " to time " + a.gettEnd());
                 downlinkedChlorophyllEvents.addAll(storedChlorophyllEvents);
                 storedChlorophyllEvents.clear();
-            }
-            case "crosslink" -> {
-                batteryCharge = batteryCharge + (a.gettStart() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600;
-                batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("crosslinkOnPower")) / 3600;
-                currentCrosslinkLog.add("Crosslink from time " + a.gettStart() + " to time " + a.gettEnd() + " to satellite " + a.getCrosslinkSat());
             }
         }
         return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward,satChlorophyllEvents,currentCrosslinkLog,currentDownlinkLog);

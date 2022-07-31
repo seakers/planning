@@ -48,10 +48,9 @@ public class MCTSPlanner {
 //        results = observations;
 //    }
 
-    public MCTSPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<String,TimeIntervalArray> crosslinks, Map<GeodeticPoint,Double> rewardGrid, SatelliteState initialState, Map<String,String> priorityInfo, Map<String, String> settings) {
+    public MCTSPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<GeodeticPoint,Double> rewardGrid, SatelliteState initialState, Map<String,String> priorityInfo, Map<String, String> settings) {
         this.sortedObservations = sortedObservations;
         this.downlinks = downlinks;
-        this.crosslinks = crosslinks;
         this.rewardGrid = rewardGrid;
         this.settings = settings;
         this.gamma = 0.999;
@@ -178,17 +177,6 @@ public class MCTSPlanner {
             selectedAction = downlinkActions.get(random.nextInt(downlinkActions.size()));
         }
         ArrayList<SatelliteAction> crosslinkActions = new ArrayList<>();
-        if(crosslinkEnabled) {
-            for (SatelliteAction a : actionSpace) {
-                if(a.getActionType().equals("crosslink") && priorityInfo.get(a.getCrosslinkSat()).equals("new info")) {
-                    crosslinkActions.add(a);
-                }
-            }
-        }
-        if(selectedAction==null && crosslinkActions.size()!=0) {
-            Random random = new Random();
-            selectedAction = crosslinkActions.get(random.nextInt(crosslinkActions.size()));
-        }
         if(selectedAction==null) {
             ArrayList<SatelliteAction> observationActions = new ArrayList<>();
             for(SatelliteAction a : actionSpace) {
@@ -215,14 +203,6 @@ public class MCTSPlanner {
             case "downlink" -> {
                 double dataFracDownlinked = ((a.gettEnd() - a.gettStart()) * 0.1) / s.getDataStored();
                 score = s.getStoredImageReward() * dataFracDownlinked;
-            }
-            case "crosslink" -> {
-                if(priorityInfo.get(a.getCrosslinkSat()).equals("new info")) {
-                    score = 1.0;
-                    priorityInfo.put(a.getCrosslinkSat(),"no new info");
-                } else {
-                    score = 0.0;
-                }
             }
         }
         if(s.getBatteryCharge() < 10) {
@@ -264,10 +244,6 @@ public class MCTSPlanner {
                 }
                 storedImageReward -= storedImageReward * dataFracDownlinked;
             }
-            case "crosslink" -> {
-                batteryCharge = batteryCharge + (a.gettStart() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600;
-                batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("crosslinkOnPower")) / 3600;
-            }
         }
         return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward);
     }
@@ -298,21 +274,6 @@ public class MCTSPlanner {
                     SatelliteAction downlinkAction = new SatelliteAction(currentTime, downlinks.getRiseAndSetTimesList()[i+1], null, "downlink");
                     possibleActions.add(downlinkAction);
                     downlinkActions.add(downlinkAction);
-                }
-            }
-        }
-        ArrayList<SatelliteAction> crosslinkActions = new ArrayList<>();
-        if(crosslinkEnabled) {
-            for (String sat : crosslinks.keySet()) {
-                double[] crosslinkTimes = crosslinks.get(sat).getRiseAndSetTimesList();
-                for (int i = 0; i < crosslinkTimes.length; i = i + 2) {
-                    if (crosslinkTimes[i] >= currentTime && crosslinkActions.size() < actionSpaceSize) {
-                        SatelliteAction crosslinkAction = new SatelliteAction(crosslinkTimes[i], crosslinkTimes[i]+0.1, null, "crosslink", sat);
-                        SatelliteAction chargeAction = new SatelliteAction(crosslinkTimes[i], crosslinkTimes[i]+0.1, null, "charge");
-                        possibleActions.add(crosslinkAction);
-                        possibleActions.add(chargeAction);
-                        crosslinkActions.add(crosslinkAction);
-                    }
                 }
             }
         }

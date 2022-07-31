@@ -51,20 +51,19 @@ public class DumbMCTSPlanner {
 //        results = observations;
 //    }
 
-    public DumbMCTSPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<String,TimeIntervalArray> crosslinks, Map<GeodeticPoint,Double> rewardGrid, SatelliteState initialState, Map<String,String> priorityInfo, Map<String, String> settings) {
+    public DumbMCTSPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<GeodeticPoint,Double> rewardGrid, SatelliteState initialState, Map<String,String> priorityInfo, Map<String, String> settings) {
         this.sortedObservations = sortedObservations;
         this.downlinks = downlinks;
-        this.crosslinks = crosslinks;
         this.rewardGrid = rewardGrid;
         this.settings = settings;
-        this.gamma = 0.999;
+        this.gamma = 0.995;
         this.priorityInfo = new HashMap<>(priorityInfo);
         this.dSolveInit = 10;
         this.actionSpaceSize = 4;
-        this.nMaxSim = 50;
+        this.nMaxSim = 500;
         this.crosslinkEnabled = Boolean.parseBoolean(settings.get("crosslinkEnabled"));
         this.downlinkEnabled = Boolean.parseBoolean(settings.get("downlinkEnabled"));
-        this.c = 1;
+        this.c = 3;
         this.Q = new HashMap<>();
         this.N = new HashMap<>();
         this.V = new ArrayList<>();

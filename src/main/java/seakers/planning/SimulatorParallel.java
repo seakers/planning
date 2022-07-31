@@ -5,10 +5,11 @@ import seakers.orekit.coverage.access.TimeIntervalArray;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.Callable;
 
 import static java.lang.Double.parseDouble;
 
-public class Simulator {
+public class SimulatorParallel implements Callable<Map<String,Double>> {
     private String filepath;
     public Map<String, Map<String, TimeIntervalArray>> crosslinkEvents;
     public Map<String, TimeIntervalArray> downlinkEvents;
@@ -37,7 +38,14 @@ public class Simulator {
     public double endTime;
     private Map<String, Double> results;
 
-    public Simulator(Map<String,String> settings) {
+    private Map<String, String> settings;
+
+    public SimulatorParallel(Map<String,String> settings) {
+        this.settings = settings;
+    }
+
+    public Map<String,Double> call() throws Exception {
+        System.out.println("starting simulator");
         long start = System.nanoTime();
         filepath = "./src/test/resources/plannerData/oneday";
         loadCrosslinks();
@@ -77,8 +85,9 @@ public class Simulator {
             rewardDownlinked.put(sat,0.0);
             imagedChlorophyllEvents.put(sat, new ArrayList<>());
             downlinkedChlorophyllEvents.put(sat, new ArrayList<>());
-            System.out.println("Done with initial plan for "+sat);
+
         }
+        System.out.println("Done with initial plans");
         double currentTime = 0.0;
 
         for (String sat : satList) {
@@ -91,7 +100,7 @@ public class Simulator {
 
         String planFlag;
         while (currentTime < endTime) {
-            System.out.println("Currently at: "+currentTime);
+            //System.out.println("Currently at: "+currentTime);
             double earliestStopTime = endTime;
             // determine earliest stop time based on replanning flags
             for (String sat : satList) {
@@ -221,7 +230,12 @@ public class Simulator {
         }
         long end = System.nanoTime();
         System.out.printf("Took %.4f sec\n", (end - start) / Math.pow(10, 9));
+        return results;
     }
+
+//    public SimulatorParallel() {
+//
+//    }
 
     public void updateGlobalRewardGrid(Map<GeodeticPoint,ChlorophyllEvent> updates) {
         for(GeodeticPoint gp : updates.keySet()) {

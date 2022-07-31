@@ -16,10 +16,9 @@ public class RuleBasedPlanner {
     private Map<GeodeticPoint,Double> rewardGrid;
     private Map<String,String> settings;
 
-    public RuleBasedPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<String,TimeIntervalArray> crosslinks, Map<GeodeticPoint,Double> rewardGrid, SatelliteState initialState, Map<String,String> priorityInfo, Map<String, String> settings) {
+    public RuleBasedPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<GeodeticPoint,Double> rewardGrid, SatelliteState initialState, Map<String,String> priorityInfo, Map<String, String> settings) {
         this.sortedObservations = sortedObservations;
         this.downlinks = downlinks;
-        this.crosslinks = crosslinks;
         this.rewardGrid = rewardGrid;
         this.priorityInfo = new HashMap<>(priorityInfo);
         this.crosslinkEnabled = Boolean.parseBoolean(settings.get("crosslinkEnabled"));
@@ -74,10 +73,6 @@ public class RuleBasedPlanner {
                     dataStored = 0;
                 }
             }
-            case "crosslink" -> {
-                batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower"));
-                batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("crosslinkOnPower"));
-            }
         }
         return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward);
     }
@@ -85,8 +80,7 @@ public class RuleBasedPlanner {
     public SatelliteAction selectAction(SatelliteState s) {
         ArrayList<SatelliteAction> possibleActions = getActionSpace(s);
         SatelliteAction bestAction = null;
-        SatelliteAction crosslinkAction;
-        double estimatedReward = 80000;
+        double estimatedReward = 10000000;
         double maximum = 0.0;
         if(s.getBatteryCharge() < 15) {
             bestAction = new SatelliteAction(s.getT(),s.getT()+60.0,null,"charge");
@@ -112,15 +106,6 @@ public class RuleBasedPlanner {
                 }
             }
         }
-        for (SatelliteAction a : possibleActions) {
-            if (a.getActionType().equals("crosslink") && priorityInfo.get(a.getCrosslinkSat()).equals("new info") && bestAction!=null) {
-                crosslinkAction = a;
-                if(crosslinkAction.gettEnd() < bestAction.gettStart()) {
-                    bestAction = crosslinkAction;
-                }
-                break;
-            }
-        }
         return bestAction;
     }
 
@@ -143,17 +128,6 @@ public class RuleBasedPlanner {
                 } else if (downlinks.getRiseAndSetTimesList()[i] < currentTime && downlinks.getRiseAndSetTimesList()[i + 1] > currentTime) {
                     SatelliteAction downlinkAction = new SatelliteAction(currentTime, downlinks.getRiseAndSetTimesList()[i + 1], null, "downlink");
                     possibleActions.add(downlinkAction);
-                }
-            }
-        }
-        if(crosslinkEnabled) {
-            for (String sat : crosslinks.keySet()) {
-                double[] crosslinkTimes = crosslinks.get(sat).getRiseAndSetTimesList();
-                for (int i = 0; i < crosslinkTimes.length; i = i + 2) {
-                    if (crosslinkTimes[i] >= currentTime) {
-                        SatelliteAction crosslinkAction = new SatelliteAction(crosslinkTimes[i], crosslinkTimes[i]+0.1, null, "crosslink", sat);
-                        possibleActions.add(crosslinkAction);
-                    }
                 }
             }
         }

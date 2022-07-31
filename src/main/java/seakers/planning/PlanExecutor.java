@@ -14,6 +14,7 @@ import org.apache.http.message.BasicNameValuePair;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.orekit.bodies.GeodeticPoint;
+import seakers.orekit.coverage.access.TimeIntervalArray;
 import seakers.planning.SatelliteAction;
 import seakers.planning.SatelliteState;
 
@@ -115,22 +116,16 @@ public class PlanExecutor {
                     dataStored = 0;
                     dataFracDownlinked = 1.0;
                 }
-                rewardDownlinked += storedImageReward * dataFracDownlinked;
-                storedImageReward = storedImageReward - storedImageReward * dataFracDownlinked;
-                if(storedImageReward < 0) {
-                    storedImageReward = 0;
-                }
+                //rewardDownlinked += storedImageReward * dataFracDownlinked;
+                rewardDownlinked += storedImageReward;
+                storedImageReward = 0;
+//                storedImageReward = storedImageReward - storedImageReward * dataFracDownlinked;
+//                if(storedImageReward < 0) {
+//                    storedImageReward = 0;
+//                }
                 currentDownlinkLog.add("Downlink from time " + a.gettStart() + " to time " + a.gettEnd());
                 stopTime = a.gettEnd();
                 replanFlag = "downlink";
-                doneFlag = true;
-            }
-            case "crosslink" -> {
-                batteryCharge = batteryCharge + (a.gettStart() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600;
-                batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("crosslinkOnPower")) / 3600;
-                currentCrosslinkLog.add("Crosslink from time " + a.gettStart() + " to time " + a.gettEnd() + " to satellite " + a.getCrosslinkSat());
-                stopTime = a.gettEnd();
-                replanFlag = a.getCrosslinkSat();
                 doneFlag = true;
             }
         }
