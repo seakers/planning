@@ -45,7 +45,7 @@ public class Simulator {
         loadObservations();
         loadRewardGrid();
         debug = true;
-        chlReward = 1.0 + Double.parseDouble(settings.get("chlBonusReward"));
+        chlReward = Double.parseDouble(settings.get("chlBonusReward"));
         endTime = 86400.0;
         results = new HashMap<>();
         localRewardGrids = new HashMap<>();
@@ -114,6 +114,7 @@ public class Simulator {
                     case "downlink": {
                         updateCentralRewardGrid(planExec.getRewardGridUpdates());
                         updateGlobalRewardGrid(planExec.getRewardGridUpdates());
+                        System.out.println(planExec.getRewardDownlinked());
                         rewardDownlinked.put(sat, rewardDownlinked.get(sat) + planExec.getRewardDownlinked());
                         ArrayList<ChlorophyllEvent> tempList = new ArrayList<>(downlinkedChlorophyllEvents.get(sat));
                         tempList.addAll(imagedChlorophyllEvents.get(sat));
@@ -394,7 +395,7 @@ public class Simulator {
                 ObjectInputStream oi = new ObjectInputStream(fi);
 
                 globalRewardGrid =  (Map<GeodeticPoint,Double>) oi.readObject();
-                globalRewardGrid.replaceAll((g, v) -> 1.0);
+                globalRewardGrid.replaceAll((g, v) -> 0.0);
                 naiveGlobalRewardGrid = new HashMap<>(globalRewardGrid);
                 centralRewardGrid = new HashMap<>(globalRewardGrid);
 

@@ -58,12 +58,12 @@ public class DumbMCTSPlanner {
         this.settings = settings;
         this.gamma = 0.995;
         this.priorityInfo = new HashMap<>(priorityInfo);
-        this.dSolveInit = 10;
-        this.actionSpaceSize = 4;
-        this.nMaxSim = 500;
+        this.dSolveInit = 5;
+        this.actionSpaceSize = 3;
+        this.nMaxSim = 50;
         this.crosslinkEnabled = Boolean.parseBoolean(settings.get("crosslinkEnabled"));
         this.downlinkEnabled = Boolean.parseBoolean(settings.get("downlinkEnabled"));
-        this.c = 3;
+        this.c = 1;
         this.Q = new HashMap<>();
         this.N = new HashMap<>();
         this.V = new ArrayList<>();

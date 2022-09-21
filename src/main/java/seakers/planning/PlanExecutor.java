@@ -97,7 +97,7 @@ public class PlanExecutor {
                 batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("cameraOnPower")) / 3600;
                 dataStored = dataStored + 1.0;
                 currentAngle = a.getAngle();
-                storedImageReward = storedImageReward + 1.0;
+                storedImageReward = storedImageReward + 0.0;
                 boolean interestingImage = processImage(a.gettStart(), a.getLocation(), satelliteName);
                 if (interestingImage) {
                     satChlorophyllEvents.addAll(chlorophyllEvents);
@@ -193,7 +193,7 @@ public class PlanExecutor {
             ChlorophyllEvent algalBloom = new ChlorophyllEvent(location, time, time+7200.0, limit, current);
             algalBloom.addToEventLog("Algal bloom image capture at "+location+" at "+time+" with current value "+current+" over the limit of "+limit+" by satellite "+satelliteName);
             chlorophyllEvents.add(algalBloom);
-            rewardGridUpdates.put(location,algalBloom);
+            rewardGridUpdates.put(location,algalBloom);  
             return true;
         }
         else {

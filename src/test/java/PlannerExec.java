@@ -8,14 +8,14 @@ public class PlannerExec {
         Map<String,String> settings = new HashMap<>();
         settings.put("crosslinkEnabled","false");
         settings.put("downlinkEnabled","true");
-        settings.put("downlinkSpeedMbps","0.1");
+        settings.put("downlinkSpeedMbps","1000.1");
         settings.put("cameraOnPower","0.0");
         settings.put("chargePower","5.0");
         settings.put("downlinkOnPower","0.0");
         settings.put("crosslinkOnPower","0.0");
-        settings.put("chlBonusReward","99.0");
+        settings.put("chlBonusReward","100.0");
         settings.put("maxTorque","4e-3");
-        settings.put("planner","ruleBased");
+        settings.put("planner","dumbMcts");
         double smartSum = 0;
         double naiveSum = 0;
         double smartCount = 0;
