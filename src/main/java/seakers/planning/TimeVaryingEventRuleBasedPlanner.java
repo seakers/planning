@@ -3,9 +3,11 @@ package seakers.planning;
 import org.orekit.bodies.GeodeticPoint;
 import seakers.orekit.coverage.access.TimeIntervalArray;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
-public class RuleBasedPlanner {
+public class TimeVaryingEventRuleBasedPlanner {
     private ArrayList<SatelliteAction> results;
     private boolean downlinkEnabled;
     private boolean crosslinkEnabled;
@@ -15,10 +17,10 @@ public class RuleBasedPlanner {
     private TimeIntervalArray downlinks;
     private Map<String, TimeIntervalArray> crosslinks;
     private Map<String,String> priorityInfo;
-    private Map<GeodeticPoint,Double> rewardGrid;
+    private Map<GeodeticPoint,Reward> rewardGrid;
     private Map<String,String> settings;
 
-    public RuleBasedPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<GeodeticPoint,Double> rewardGrid, SatelliteState initialState, Map<String,String> priorityInfo, Map<String, String> settings) {
+    public TimeVaryingEventRuleBasedPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<GeodeticPoint,Reward> rewardGrid, SatelliteState initialState, Map<String,String> priorityInfo, Map<String, String> settings) {
         this.sortedObservations = sortedObservations;
         this.downlinks = downlinks;
         this.rewardGrid = rewardGrid;
@@ -123,7 +125,7 @@ public class RuleBasedPlanner {
         ArrayList<SatelliteAction> possibleActions = new ArrayList<>();
         for (Observation obs : sortedObservations) {
             if(obs.getObservationStart() > currentTime) {
-                SatelliteAction obsAction = new SatelliteAction(obs.getObservationStart(),obs.getObservationEnd(),obs.getObservationPoint(),"imaging",rewardGrid.get(obs.getObservationPoint()),obs.getObservationAngle());
+                SatelliteAction obsAction = new SatelliteAction(obs.getObservationStart(),obs.getObservationEnd(),obs.getObservationPoint(),"imaging",rewardGrid.get(obs.getObservationPoint()).getReward(obs.getObservationStart()),obs.getObservationAngle());
                 if(canSlew(s.getCurrentAngle(),obs.getObservationAngle(),currentTime,obs.getObservationStart())) {
                     possibleActions.add(obsAction);
                 }

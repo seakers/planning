@@ -53,11 +53,11 @@ public class MCTSPlanner {
         this.downlinks = downlinks;
         this.rewardGrid = rewardGrid;
         this.settings = settings;
-        this.gamma = 0.999;
+        this.gamma = 0.995;
         this.priorityInfo = new HashMap<>(priorityInfo);
-        this.dSolveInit = 10;
+        this.dSolveInit = 20;
         this.actionSpaceSize = 4;
-        this.nMaxSim = 15;
+        this.nMaxSim = 50;
         this.crosslinkEnabled = Boolean.parseBoolean(settings.get("crosslinkEnabled"));
         this.downlinkEnabled = Boolean.parseBoolean(settings.get("downlinkEnabled"));
         this.c = 3;
@@ -165,7 +165,7 @@ public class MCTSPlanner {
             selectedAction = chargeActions.get(random.nextInt(chargeActions.size()));
         }
         ArrayList<SatelliteAction> downlinkActions = new ArrayList<>();
-        if(s.getDataStored() > 50 && downlinkEnabled) {
+        if(s.getDataStored() > 90 && downlinkEnabled) {
             for (SatelliteAction a : actionSpace) {
                 if(a.getActionType().equals("downlink")) {
                     downlinkActions.add(a);
@@ -198,14 +198,14 @@ public class MCTSPlanner {
     public double rewardFunction(SatelliteState s, SatelliteAction a){
         double score = 0.0;
         switch (a.getActionType()) {
-            case "charge" -> score = 0.0;
+            case "charge" -> score = 1e-4 * (a.gettStart() - s.getT());
             case "imaging" -> score = a.getReward() * Math.pow(gamma, (a.gettStart() - s.getT()));
             case "downlink" -> {
                 double dataFracDownlinked = ((a.gettEnd() - a.gettStart()) * 0.1) / s.getDataStored();
-                score = s.getStoredImageReward() * dataFracDownlinked;
+                score = 0.0 * (a.gettStart() - s.getT());
             }
         }
-        if(s.getBatteryCharge() < 10) {
+        if(s.getBatteryCharge() < 15) {
             score = -1000;
         }
         if(s.getDataStored() > 100 && downlinkEnabled) {
@@ -227,8 +227,8 @@ public class MCTSPlanner {
             case "charge" -> batteryCharge = batteryCharge + (a.gettEnd() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600; // Wh
             case "imaging" -> {
                 currentAngle = a.getAngle();
-                batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower"));
-                batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("cameraOnPower"));
+                batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower")) / 3600;
+                batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("cameraOnPower")) / 3600;
                 dataStored += 1.0; // 1 Mbps per picture
                 storedImageReward += a.getReward();
             }

@@ -13,7 +13,8 @@ public class SatelliteState {
     private double storedImageReward;
     private ArrayList<SatelliteAction> actionHistory;
     private ArrayList<GeodeticPoint> images;
-    private ArrayList<ChlorophyllEvent> chlorophyllEvents;
+    private ArrayList<GeophysicalEvent> geophysicalEvents;
+    private ArrayList<EventObservation> eventObservations;
     private ArrayList<String> crosslinkLog;
     private ArrayList<String> downlinkLog;
     public SatelliteState() {
@@ -39,7 +40,7 @@ public class SatelliteState {
         this.currentAngle = currentAngle;
         this.storedImageReward = storedImageReward;
     }
-    public SatelliteState (double t, double tPrevious, ArrayList<SatelliteAction> actionHistory, double batteryCharge, double dataStored, double currentAngle, double storedImageReward, ArrayList<ChlorophyllEvent> chlorophyllEvents, ArrayList<String> crosslinkLog, ArrayList<String> downlinkLog) {
+    public SatelliteState (double t, double tPrevious, ArrayList<SatelliteAction> actionHistory, double batteryCharge, double dataStored, double currentAngle, double storedImageReward, ArrayList<GeophysicalEvent> geophysicalEvents, ArrayList<String> crosslinkLog, ArrayList<String> downlinkLog) {
         this.t = t;
         this.tPrevious = tPrevious;
         this.actionHistory = actionHistory;
@@ -47,7 +48,20 @@ public class SatelliteState {
         this.dataStored = dataStored;
         this.currentAngle = currentAngle;
         this.storedImageReward = storedImageReward;
-        this.chlorophyllEvents = chlorophyllEvents;
+        this.geophysicalEvents = geophysicalEvents;
+        this.crosslinkLog = crosslinkLog;
+        this.downlinkLog = downlinkLog;
+    }
+    public SatelliteState (double t, double tPrevious, ArrayList<SatelliteAction> actionHistory, double batteryCharge, double dataStored, double currentAngle, double storedImageReward, ArrayList<GeophysicalEvent> geophysicalEvents, ArrayList<EventObservation> eventObservations, ArrayList<String> crosslinkLog, ArrayList<String> downlinkLog) {
+        this.t = t;
+        this.tPrevious = tPrevious;
+        this.actionHistory = actionHistory;
+        this.batteryCharge = batteryCharge;
+        this.dataStored = dataStored;
+        this.currentAngle = currentAngle;
+        this.storedImageReward = storedImageReward;
+        this.geophysicalEvents = geophysicalEvents;
+        this.eventObservations = eventObservations;
         this.crosslinkLog = crosslinkLog;
         this.downlinkLog = downlinkLog;
     }
@@ -59,7 +73,7 @@ public class SatelliteState {
         this.currentAngle = another.currentAngle;
         this.storedImageReward = another.storedImageReward;
         this.actionHistory = another.actionHistory;
-        this.chlorophyllEvents = another.chlorophyllEvents;
+        this.geophysicalEvents = another.geophysicalEvents;
         this.crosslinkLog = another.crosslinkLog;
         this.downlinkLog = another.downlinkLog;
     }
@@ -72,7 +86,8 @@ public class SatelliteState {
     public double getStoredImageReward() { return storedImageReward; }
     public double getDataStored() { return dataStored; }
     public double getBatteryCharge() { return batteryCharge; }
-    public ArrayList<ChlorophyllEvent> getChlorophyllEvents() { return chlorophyllEvents; }
+    public ArrayList<GeophysicalEvent> getGeophysicalEvents() { return geophysicalEvents; }
+    public ArrayList<EventObservation> getEventObservations() { return eventObservations; }
     public ArrayList<String> getCrosslinkLog() { return crosslinkLog; }
     public ArrayList<String> getDownlinkLog() { return downlinkLog; }
 }

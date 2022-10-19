@@ -58,12 +58,12 @@ public class DumbMCTSPlanner {
         this.settings = settings;
         this.gamma = 0.995;
         this.priorityInfo = new HashMap<>(priorityInfo);
-        this.dSolveInit = 5;
-        this.actionSpaceSize = 3;
+        this.dSolveInit = 10;
+        this.actionSpaceSize = 5;
         this.nMaxSim = 50;
         this.crosslinkEnabled = Boolean.parseBoolean(settings.get("crosslinkEnabled"));
         this.downlinkEnabled = Boolean.parseBoolean(settings.get("downlinkEnabled"));
-        this.c = 1;
+        this.c = 3;
         this.Q = new HashMap<>();
         this.N = new HashMap<>();
         this.V = new ArrayList<>();
@@ -91,6 +91,7 @@ public class DumbMCTSPlanner {
                     if(value >= max) {
                         max = value;
                         bestAction = sa.getA();
+
                         //System.out.println(bestAction.getReward());
                     }
                 }
@@ -100,8 +101,11 @@ public class DumbMCTSPlanner {
             }
             StateAction stateAction = new StateAction(s,bestAction);
             s = transitionFunction(s,bestAction);
+            //System.out.println(s.getT());
             resultList.add(stateAction);
             moreActions = !getActionSpace(s).isEmpty();
+            Q = new HashMap<>();
+            N = new HashMap<>();
         }
         return resultList;
     }
@@ -189,7 +193,7 @@ public class DumbMCTSPlanner {
     public double rewardFunction(SatelliteState s, SatelliteAction a){
         double score = 0.0;
         switch (a.getActionType()) {
-            case "imaging" -> score = 0;
+            case "imaging" -> score = 1.0;
             case "downlink" -> {
                 score = s.getStoredImageReward();
             }
@@ -210,15 +214,15 @@ public class DumbMCTSPlanner {
             case "charge" -> batteryCharge = batteryCharge + (a.gettEnd() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600; // Wh
             case "imaging" -> {
                 currentAngle = a.getAngle();
-                batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower"));
-                batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("cameraOnPower"));
+                batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower")) / 3600;
+                batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("cameraOnPower")) / 3600;
                 storedImageReward = storedImageReward + a.getReward();
             }
             // insert reward grid update here
             case "downlink" -> {
                 dataStored = dataStored - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("downlinkSpeedMbps"));
-                batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower"));
-                batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("downlinkOnPower"));
+                batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower")) / 3600;
+                batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("downlinkOnPower")) / 3600;
                 if (dataStored < 0) {
                     dataStored = 0;
                 }

@@ -36,11 +36,11 @@ public class PlanExecutor {
     private boolean doneFlag;
     private SatelliteState returnState;
     private double rewardDownlinked;
-    private Map<GeodeticPoint, ChlorophyllEvent> rewardGridUpdates;
+    private Map<GeodeticPoint, GeophysicalEvent> rewardGridUpdates;
     private double imageProcessingTime;
-    Map<GeodeticPoint,Double> chlorophyllLimits = new HashMap<>();
-    Map<GeodeticPoint,Double> currentChlorophyll = new HashMap<>();
-    private ArrayList<ChlorophyllEvent> chlorophyllEvents = new ArrayList<>();
+    Map<GeodeticPoint,Double> geophysicalLimits = new HashMap<>();
+    Map<GeodeticPoint,Double> currentGeophysical = new HashMap<>();
+    private ArrayList<GeophysicalEvent> geophysicalEvents = new ArrayList<>();
     private Map<String,String> settings;
 
     public PlanExecutor(SatelliteState s, double startTime, double endTime, ArrayList<SatelliteAction> actionsToTake, String satelliteName, Map<String,String> settings) {
@@ -53,7 +53,7 @@ public class PlanExecutor {
         this.settings = settings;
         this.satelliteName = satelliteName;
         double currentTime = startTime;
-        loadChlorophyll();
+        loadGeophysical();
         while(!doneFlag) {
             SatelliteAction actionToTake = null;
             for(SatelliteAction a : actionsToTake) {
@@ -80,7 +80,7 @@ public class PlanExecutor {
     public SatelliteState transitionFunction(SatelliteState s, SatelliteAction a) {
         double t = a.gettEnd();
         double tPrevious = s.getT();
-        ArrayList<ChlorophyllEvent> satChlorophyllEvents = new ArrayList<>(s.getChlorophyllEvents());
+        ArrayList<GeophysicalEvent> satGeophysicalEvents = new ArrayList<>(s.getGeophysicalEvents());
         ArrayList<String> currentCrosslinkLog = new ArrayList<>(s.getCrosslinkLog());
         ArrayList<String> currentDownlinkLog = new ArrayList<>(s.getDownlinkLog());
         ArrayList<SatelliteAction> history = new ArrayList<>(s.getHistory());
@@ -100,7 +100,7 @@ public class PlanExecutor {
                 storedImageReward = storedImageReward + 0.0;
                 boolean interestingImage = processImage(a.gettStart(), a.getLocation(), satelliteName);
                 if (interestingImage) {
-                    satChlorophyllEvents.addAll(chlorophyllEvents);
+                    satGeophysicalEvents.addAll(geophysicalEvents);
                     storedImageReward = storedImageReward + Double.parseDouble(settings.get("chlBonusReward"));
                     stopTime = a.gettEnd();
                     replanFlag = "image";
@@ -129,16 +129,16 @@ public class PlanExecutor {
                 doneFlag = true;
             }
         }
-        return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward,satChlorophyllEvents,currentCrosslinkLog,currentDownlinkLog);
+        return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward,satGeophysicalEvents,currentCrosslinkLog,currentDownlinkLog);
     }
 
-    public Map<GeodeticPoint, ChlorophyllEvent> getRewardGridUpdates() {
+    public Map<GeodeticPoint, GeophysicalEvent> getRewardGridUpdates() {
         return rewardGridUpdates;
     }
 
-    public void loadChlorophyll() {
-        List<List<String>> chlorophyllBaselines = new ArrayList<>();
-        List<List<String>> chlorophyllRecents = new ArrayList<>();
+    public void loadGeophysical() {
+        List<List<String>> geophysicalBaselines = new ArrayList<>();
+        List<List<String>> geophysicalRecents = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new FileReader("./src/test/resources/chlorophyll_baseline.csv"))) {
             String line;
             int count = 0;
@@ -148,52 +148,52 @@ public class PlanExecutor {
                     continue;
                 }
                 String[] values = line.split(",");
-                chlorophyllBaselines.add(Arrays.asList(values));
+                geophysicalBaselines.add(Arrays.asList(values));
             }
         } catch (Exception e) {
             System.out.println("Exception occurred in loadCoveragePoints: " + e);
         }
-        for (List<String> chlorophyllBaseline : chlorophyllBaselines) {
-            double lon = Math.toRadians(parseDouble(chlorophyllBaseline.get(0)));
-            double lat = Math.toRadians(parseDouble(chlorophyllBaseline.get(1)));
-            double mean = parseDouble(chlorophyllBaseline.get(2));
-            double sd = parseDouble(chlorophyllBaseline.get(3));
+        for (List<String> geophysicalBaseline : geophysicalBaselines) {
+            double lon = Math.toRadians(parseDouble(geophysicalBaseline.get(0)));
+            double lat = Math.toRadians(parseDouble(geophysicalBaseline.get(1)));
+            double mean = parseDouble(geophysicalBaseline.get(2));
+            double sd = parseDouble(geophysicalBaseline.get(3));
             GeodeticPoint chloroPoint = new GeodeticPoint(lat, lon, 0.0);
-            chlorophyllLimits.put(chloroPoint, mean + sd);
+            geophysicalLimits.put(chloroPoint, mean + sd);
         }
         try (BufferedReader br = new BufferedReader(new FileReader("./src/test/resources/chlorophyll_recent.csv"))) {
             String line;
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
-                chlorophyllRecents.add(Arrays.asList(values));
+                geophysicalRecents.add(Arrays.asList(values));
             }
         } catch (Exception e) {
             System.out.println("Exception occurred in loadCoveragePoints: " + e);
         }
-        for (int i = 0; i < chlorophyllRecents.size(); i++) {
-            double lon = Math.toRadians(parseDouble(chlorophyllBaselines.get(i).get(0)));
-            double lat = Math.toRadians(parseDouble(chlorophyllBaselines.get(i).get(1)));
-            double chl = parseDouble(chlorophyllRecents.get(i).get(2));
+        for (int i = 0; i < geophysicalRecents.size(); i++) {
+            double lon = Math.toRadians(parseDouble(geophysicalBaselines.get(i).get(0)));
+            double lat = Math.toRadians(parseDouble(geophysicalBaselines.get(i).get(1)));
+            double chl = parseDouble(geophysicalRecents.get(i).get(2));
             GeodeticPoint chloroPoint = new GeodeticPoint(lat, lon, 0.0);
-            currentChlorophyll.put(chloroPoint, chl);
+            currentGeophysical.put(chloroPoint, chl);
         }
     }
     
     public boolean processImage(double time, GeodeticPoint location, String satelliteName) {
         double limit = 0;
         double current = 0;
-        for(GeodeticPoint gp : chlorophyllLimits.keySet()) {
+        for(GeodeticPoint gp : geophysicalLimits.keySet()) {
             if(Math.sqrt(Math.pow(location.getLatitude()-gp.getLatitude(),2)+Math.pow(location.getLongitude()-gp.getLongitude(),2)) < 0.00001) {
-                limit = chlorophyllLimits.get(gp);
-                current = currentChlorophyll.get(gp);
+                limit = geophysicalLimits.get(gp);
+                current = currentGeophysical.get(gp);
                 break;
             }
         }
         if(current > limit) {
-            ChlorophyllEvent algalBloom = new ChlorophyllEvent(location, time, time+7200.0, limit, current);
-            algalBloom.addToEventLog("Algal bloom image capture at "+location+" at "+time+" with current value "+current+" over the limit of "+limit+" by satellite "+satelliteName);
-            chlorophyllEvents.add(algalBloom);
-            rewardGridUpdates.put(location,algalBloom);  
+            GeophysicalEvent algalBloom = new GeophysicalEvent(location, time, time+7200.0, limit);
+            //algalBloom.addToEventLog("Algal bloom image capture at "+location+" at "+time+" with current value "+current+" over the limit of "+limit+" by satellite "+satelliteName);
+            geophysicalEvents.add(algalBloom);
+            rewardGridUpdates.put(location,algalBloom);
             return true;
         }
         else {
@@ -234,7 +234,7 @@ public class PlanExecutor {
         double elapsed = (end-start)/1e9;
         imageProcessingTime = imageProcessingTime + elapsed;
         if(answer.equals("outlier")) {
-            System.out.println("Chlorophyll outlier at: "+location+", BDA: "+bda);
+            System.out.println("Geophysical outlier at: "+location+", BDA: "+bda);
 //            rewardGridUpdates.put(location,100.0);
             return true;
         } else {
@@ -260,5 +260,5 @@ public class PlanExecutor {
         return returnState;
     }
 
-    public ArrayList<ChlorophyllEvent> getChlorophyllEvents() { return chlorophyllEvents; }
+    public ArrayList<GeophysicalEvent> getGeophysicalEvents() { return geophysicalEvents; }
 }

@@ -1,9 +1,10 @@
 import seakers.planning.Simulator;
+import seakers.planning.TimeVaryingEventSimulator;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class PlannerExec {
+public class TimeVaryingEventPlannerExec {
     public static void main(String[] args) {
         Map<String,String> settings = new HashMap<>();
         settings.put("crosslinkEnabled","true");
@@ -14,7 +15,7 @@ public class PlannerExec {
         settings.put("downlinkOnPower","0.0");
         settings.put("crosslinkOnPower","0.0");
         settings.put("chlBonusReward","100.0");
-        settings.put("maxTorque","4e-5");
+        settings.put("maxTorque","4e-3");
         settings.put("planner","ruleBased");
         settings.put("resources","false");
         double smartSum = 0;
@@ -23,7 +24,7 @@ public class PlannerExec {
         double naiveCount = 0;
         int numSims = 1;
         for (int i = 0; i < numSims; i++) {
-            Simulator simulator = new Simulator(settings);
+            TimeVaryingEventSimulator simulator = new TimeVaryingEventSimulator(settings);
             smartSum += simulator.getResults().get("Reactive");
             naiveSum += simulator.getResults().get("Non-reactive");
             smartCount += simulator.getResults().get("chl count Reactive");

@@ -1,21 +1,19 @@
 package seakers.planning;
 
 import org.apache.commons.math3.util.FastMath;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.impl.client.HttpClients;
 import org.apache.http.HttpEntity;
 import org.apache.http.NameValuePair;
 import org.apache.http.ParseException;
-import org.apache.http.util.EntityUtils;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.util.EntityUtils;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.orekit.bodies.GeodeticPoint;
-import seakers.planning.SatelliteAction;
-import seakers.planning.SatelliteState;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -24,23 +22,23 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-import static java.lang.Double.NaN;
 import static java.lang.Double.parseDouble;
 
-public class NaivePlanExecutor {
+public class TimeVaryingEventNaivePlanExecutor {
     private String satelliteName;
     private ArrayList<SatelliteAction> actionsTaken;
     private boolean doneFlag;
-    private Map<GeodeticPoint, GeophysicalEvent> rewardGridUpdates;
+    private Map<GeodeticPoint, EventObservation> rewardGridUpdates;
     private double imageProcessingTime;
     private double rewardDownlinked;
     Map<GeodeticPoint,Double> geophysicalLimits = new HashMap<>();
     Map<GeodeticPoint,Double> currentGeophysical = new HashMap<>();
-    private ArrayList<GeophysicalEvent> storedGeophysicalEvents = new ArrayList<>();
-    private ArrayList<GeophysicalEvent> downlinkedGeophysicalEvents = new ArrayList<>();
+    private ArrayList<EventObservation> storedEventObservations = new ArrayList<>();
+    private ArrayList<EventObservation> downlinkedEventObservations = new ArrayList<>();
+    private Map<GeodeticPoint,GeophysicalEvent> eventGrid;
     Map<String,String> settings;
 
-    public NaivePlanExecutor(SatelliteState s, double startTime, double endTime, ArrayList<SatelliteAction> actionsToTake, String satelliteName, Map<String,String> settings) {
+    public TimeVaryingEventNaivePlanExecutor(SatelliteState s, double startTime, double endTime, ArrayList<SatelliteAction> actionsToTake, String satelliteName, Map<GeodeticPoint,GeophysicalEvent> eventGrid, Map<String,String> settings) {
         doneFlag = false;
         imageProcessingTime = 0.0;
         rewardDownlinked = 0.0;
@@ -48,6 +46,7 @@ public class NaivePlanExecutor {
         actionsTaken = new ArrayList<>();
         this.satelliteName = satelliteName;
         this.settings = settings;
+        this.eventGrid = eventGrid;
         double currentTime = startTime;
         loadGeophysical();
         while(!doneFlag) {
@@ -73,6 +72,7 @@ public class NaivePlanExecutor {
         double t = a.gettEnd();
         double tPrevious = s.getT();
         ArrayList<GeophysicalEvent> satGeophysicalEvents = new ArrayList<>(s.getGeophysicalEvents());
+        ArrayList<EventObservation> satEventObservations = new ArrayList<>(s.getEventObservations());
         ArrayList<String> currentCrosslinkLog = new ArrayList<>(s.getCrosslinkLog());
         ArrayList<String> currentDownlinkLog = new ArrayList<>(s.getDownlinkLog());
         ArrayList<SatelliteAction> history = new ArrayList<>(s.getHistory());
@@ -89,9 +89,9 @@ public class NaivePlanExecutor {
                 dataStored = dataStored + 1.0;
                 currentAngle = a.getAngle();
                 storedImageReward = storedImageReward + 0.0;
-                boolean interestingImage = processImage(a.gettStart(), a.getLocation(), satelliteName);
+                boolean interestingImage = processImage(a.gettStart(), a.getLocation());
                 if (interestingImage) {
-                    satGeophysicalEvents.addAll(storedGeophysicalEvents);
+                    satEventObservations.addAll(storedEventObservations);
                     storedImageReward = storedImageReward + Double.parseDouble(settings.get("chlBonusReward"));
                 }
             }
@@ -112,14 +112,14 @@ public class NaivePlanExecutor {
 //                    storedImageReward = 0;
 //                }
                 currentDownlinkLog.add("Downlink from time " + a.gettStart() + " to time " + a.gettEnd());
-                downlinkedGeophysicalEvents.addAll(storedGeophysicalEvents);
-                storedGeophysicalEvents.clear();
+                downlinkedEventObservations.addAll(storedEventObservations);
+                storedEventObservations.clear();
             }
         }
-        return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward,satGeophysicalEvents,currentCrosslinkLog,currentDownlinkLog);
+        return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward,satGeophysicalEvents,satEventObservations,currentCrosslinkLog,currentDownlinkLog);
     }
 
-    public Map<GeodeticPoint, GeophysicalEvent> getRewardGridUpdates() {
+    public Map<GeodeticPoint, EventObservation> getRewardGridUpdates() {
         return rewardGridUpdates;
     }
 
@@ -166,24 +166,17 @@ public class NaivePlanExecutor {
         }
     }
 
-    public boolean processImage(double time, GeodeticPoint location, String satelliteName) {
-        double limit = 0;
-        double current = 0;
-        for(GeodeticPoint gp : geophysicalLimits.keySet()) {
-            if(Math.sqrt(Math.pow(location.getLatitude()-gp.getLatitude(),2)+Math.pow(location.getLongitude()-gp.getLongitude(),2)) < 0.00001) {
-                limit = geophysicalLimits.get(gp);
-                current = currentGeophysical.get(gp);
-                break;
+    public boolean processImage(double time, GeodeticPoint location) {
+        if(eventGrid.containsKey(location)) {
+            if(eventGrid.get(location).getStartTime() < time && time < eventGrid.get(location).getEndTime()) {
+                EventObservation eventObservation = new EventObservation(location,time,eventGrid.get(location).getValue());
+                rewardGridUpdates.put(location,eventObservation);
+                storedEventObservations.add(eventObservation);
+                return true;
+            } else {
+                return false;
             }
-        }
-        if(current > limit) {
-            GeophysicalEvent algalBloom = new GeophysicalEvent(location, time, 86400.0, limit);
-            //algalBloom.addToEventLog("Algal bloom image capture at "+location+" at "+time+" with current value "+current+" over the limit of "+limit+" by satellite "+satelliteName);
-            storedGeophysicalEvents.add(algalBloom);
-            rewardGridUpdates.put(location,algalBloom);
-            return true;
-        }
-        else {
+        } else {
             return false;
         }
     }
@@ -235,6 +228,6 @@ public class NaivePlanExecutor {
         return actionsTaken;
     }
 
-    public ArrayList<GeophysicalEvent> getGeophysicalEvents() { return downlinkedGeophysicalEvents; }
+    public ArrayList<EventObservation> getEventObservations() { return downlinkedEventObservations; }
 }
 

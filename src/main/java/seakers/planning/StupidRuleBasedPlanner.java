@@ -3,14 +3,14 @@ package seakers.planning;
 import org.orekit.bodies.GeodeticPoint;
 import seakers.orekit.coverage.access.TimeIntervalArray;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
-public class RuleBasedPlanner {
+public class StupidRuleBasedPlanner {
     private ArrayList<SatelliteAction> results;
     private boolean downlinkEnabled;
     private boolean crosslinkEnabled;
-
-    private boolean resources;
     private ArrayList<Observation> sortedObservations;
     private TimeIntervalArray downlinks;
     private Map<String, TimeIntervalArray> crosslinks;
@@ -18,14 +18,13 @@ public class RuleBasedPlanner {
     private Map<GeodeticPoint,Double> rewardGrid;
     private Map<String,String> settings;
 
-    public RuleBasedPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<GeodeticPoint,Double> rewardGrid, SatelliteState initialState, Map<String,String> priorityInfo, Map<String, String> settings) {
+    public StupidRuleBasedPlanner(ArrayList<Observation> sortedObservations, TimeIntervalArray downlinks, Map<GeodeticPoint,Double> rewardGrid, SatelliteState initialState, Map<String,String> priorityInfo, Map<String, String> settings) {
         this.sortedObservations = sortedObservations;
         this.downlinks = downlinks;
         this.rewardGrid = rewardGrid;
         this.priorityInfo = new HashMap<>(priorityInfo);
         this.crosslinkEnabled = Boolean.parseBoolean(settings.get("crosslinkEnabled"));
         this.downlinkEnabled = Boolean.parseBoolean(settings.get("downlinkEnabled"));
-        this.resources = Boolean.parseBoolean(settings.get("resources"));
         this.settings = settings;
         ArrayList<StateAction> stateActions = greedyPlan(initialState);
         ArrayList<SatelliteAction> observations = new ArrayList<>();
@@ -61,6 +60,7 @@ public class RuleBasedPlanner {
         double batteryCharge = s.getBatteryCharge();
         double dataStored = s.getDataStored();
         double currentAngle = s.getCurrentAngle();
+        System.out.println(s.getDataStored());
         switch (a.getActionType()) {
             case "charge" -> batteryCharge = batteryCharge + (a.gettEnd()-s.getT())*Double.parseDouble(settings.get("chargePower")) / 3600;
             case "imaging" -> {
@@ -77,6 +77,7 @@ public class RuleBasedPlanner {
                     dataStored = 0;
                 }
             }
+
         }
         return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward);
     }
@@ -84,36 +85,14 @@ public class RuleBasedPlanner {
     public SatelliteAction selectAction(SatelliteState s) {
         ArrayList<SatelliteAction> possibleActions = getActionSpace(s);
         SatelliteAction bestAction = null;
-        double estimatedReward = 100000;
-        double maximum = 0.0;
-        //System.out.println(s.getBatteryCharge());
-        if(s.getBatteryCharge() < 15 && resources) {
+        System.out.println(s.getBatteryCharge());
+        if(s.getBatteryCharge() < 15) {
             bestAction = new SatelliteAction(s.getT(),s.getT()+60.0,null,"charge");
             return bestAction;
         }
-        outerloop:
         for (SatelliteAction a : possibleActions) {
-            switch(a.getActionType()) {
-                case("downlink") -> {
-                    if(s.getDataStored() > 90 && resources) {
-                        bestAction = a;
-                        break outerloop;
-                    }
-                    if(!resources) {
-                        bestAction = a;
-                        break outerloop;
-                    }
-                }
-                case("imaging") -> {
-                    double rho = (86400.0-a.gettEnd())/(86400.0);
-                    double e = Math.pow(rho,1) * estimatedReward;
-                    double adjustedReward = a.getReward() + e;
-                    if(adjustedReward > maximum) {
-                        bestAction = a;
-                        maximum = adjustedReward;
-                    }
-                }
-            }
+            bestAction = a;
+            break;
         }
         return bestAction;
     }
@@ -129,21 +108,13 @@ public class RuleBasedPlanner {
                 }
             }
         }
-        if(downlinkEnabled && resources) {
+        if(downlinkEnabled) {
             for (int i = 0; i < downlinks.getRiseAndSetTimesList().length; i = i + 2) {
                 if (downlinks.getRiseAndSetTimesList()[i] > currentTime) {
                     SatelliteAction downlinkAction = new SatelliteAction(downlinks.getRiseAndSetTimesList()[i], downlinks.getRiseAndSetTimesList()[i+1], null, "downlink");
                     possibleActions.add(downlinkAction);
                 } else if (downlinks.getRiseAndSetTimesList()[i] < currentTime && downlinks.getRiseAndSetTimesList()[i + 1] > currentTime) {
                     SatelliteAction downlinkAction = new SatelliteAction(currentTime, downlinks.getRiseAndSetTimesList()[i + 1], null, "downlink");
-                    possibleActions.add(downlinkAction);
-                }
-            }
-        }
-        if(!resources) {
-            for (int i = 0; i < downlinks.getRiseAndSetTimesList().length; i = i + 2) {
-                if (downlinks.getRiseAndSetTimesList()[i] > currentTime && downlinks.getRiseAndSetTimesList()[i] < currentTime+60) {
-                    SatelliteAction downlinkAction = new SatelliteAction(downlinks.getRiseAndSetTimesList()[i], downlinks.getRiseAndSetTimesList()[i]+60, null, "downlink");
                     possibleActions.add(downlinkAction);
                 }
             }

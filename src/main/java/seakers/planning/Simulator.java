@@ -23,15 +23,15 @@ public class Simulator {
     public Map<GeodeticPoint,Double> naiveGlobalRewardGrid;
     public Map<GeodeticPoint,Double> centralRewardGrid;
     public Map<String, Map<String,String>> crosslinkInfo;
-    public ArrayList<Map<GeodeticPoint,ChlorophyllEvent>> globalRewardGridUpdates;
-    public ArrayList<Map<GeodeticPoint,ChlorophyllEvent>> naiveGlobalRewardGridUpdates;
-    public Map<String,ArrayList<ChlorophyllEvent>> downlinkedChlorophyllEvents;
-    public Map<String,ArrayList<ChlorophyllEvent>> naiveDownlinkedChlorophyllEvents;
-    public ArrayList<ChlorophyllEvent> crosslinkedChlorophyllEvents;
-    public Map<String,ArrayList<ChlorophyllEvent>> imagedChlorophyllEvents;
+    public ArrayList<Map<GeodeticPoint,GeophysicalEvent>> globalRewardGridUpdates;
+    public ArrayList<Map<GeodeticPoint,GeophysicalEvent>> naiveGlobalRewardGridUpdates;
+    public Map<String,ArrayList<GeophysicalEvent>> downlinkedGeophysicalEvents;
+    public Map<String,ArrayList<GeophysicalEvent>> naiveDownlinkedGeophysicalEvents;
+    public ArrayList<GeophysicalEvent> crosslinkedGeophysicalEvents;
+    public Map<String,ArrayList<GeophysicalEvent>> imagedGeophysicalEvents;
     public Map<String, SatelliteState> currentStates;
-    public Map<GeodeticPoint,Double> chlorophyllLimits;
-    public Map<GeodeticPoint,Double> currentChlorophyll;
+    public Map<GeodeticPoint,Double> geophysicalLimits;
+    public Map<GeodeticPoint,Double> currentGeophysical;
     public double chlReward;
     boolean debug;
     public double endTime;
@@ -57,15 +57,15 @@ public class Simulator {
         naiveRewardDownlinked = new HashMap<>();
         globalRewardGridUpdates = new ArrayList<>();
         naiveGlobalRewardGridUpdates = new ArrayList<>();
-        downlinkedChlorophyllEvents = new HashMap<>();
-        naiveDownlinkedChlorophyllEvents = new HashMap<>();
-        crosslinkedChlorophyllEvents = new ArrayList<>();
-        imagedChlorophyllEvents = new HashMap<>();
+        downlinkedGeophysicalEvents = new HashMap<>();
+        naiveDownlinkedGeophysicalEvents = new HashMap<>();
+        crosslinkedGeophysicalEvents = new ArrayList<>();
+        imagedGeophysicalEvents = new HashMap<>();
         ArrayList<String> satList = new ArrayList<>(downlinkEvents.keySet());
         crosslinkInfo = crosslinkInfoInitialize(satList);
-        chlorophyllLimits = new HashMap<>();
-        currentChlorophyll = new HashMap<>();
-        loadChlorophyll();
+        geophysicalLimits = new HashMap<>();
+        currentGeophysical = new HashMap<>();
+        loadGeophysical();
 
         // Create initial plans
         for (String sat : satList) {
@@ -73,10 +73,13 @@ public class Simulator {
             actionsTaken.put(sat,new ArrayList<>());
             SatelliteState satelliteState = new SatelliteState(0,0, new ArrayList<>(),70.0,0.0,0.0,0.0, new ArrayList<>(),new ArrayList<>(),new ArrayList<>());
             currentStates.put(sat,satelliteState);
+            long planStart = System.nanoTime();
             makePlan(sat,settings);
+            long planEnd = System.nanoTime();
+            System.out.printf("Took %.4f sec\n", (planEnd - planStart) / Math.pow(10, 9));
             rewardDownlinked.put(sat,0.0);
-            imagedChlorophyllEvents.put(sat, new ArrayList<>());
-            downlinkedChlorophyllEvents.put(sat, new ArrayList<>());
+            imagedGeophysicalEvents.put(sat, new ArrayList<>());
+            downlinkedGeophysicalEvents.put(sat, new ArrayList<>());
             System.out.println("Done with initial plan for "+sat);
         }
         double currentTime = 0.0;
@@ -86,7 +89,7 @@ public class Simulator {
             updateNaiveGlobalRewardGrid(planExec.getRewardGridUpdates());
             naiveActionsTaken.put(sat,planExec.getActionsTaken());
             naiveRewardDownlinked.put(sat, planExec.getRewardDownlinked());
-            naiveDownlinkedChlorophyllEvents.put(sat,planExec.getChlorophyllEvents());
+            naiveDownlinkedGeophysicalEvents.put(sat,planExec.getGeophysicalEvents());
         }
 
         String planFlag;
@@ -116,10 +119,10 @@ public class Simulator {
                         updateGlobalRewardGrid(planExec.getRewardGridUpdates());
                         System.out.println(planExec.getRewardDownlinked());
                         rewardDownlinked.put(sat, rewardDownlinked.get(sat) + planExec.getRewardDownlinked());
-                        ArrayList<ChlorophyllEvent> tempList = new ArrayList<>(downlinkedChlorophyllEvents.get(sat));
-                        tempList.addAll(imagedChlorophyllEvents.get(sat));
-                        downlinkedChlorophyllEvents.put(sat, tempList);
-                        imagedChlorophyllEvents.put(sat, new ArrayList<>());
+                        ArrayList<GeophysicalEvent> tempList = new ArrayList<>(downlinkedGeophysicalEvents.get(sat));
+                        tempList.addAll(imagedGeophysicalEvents.get(sat));
+                        downlinkedGeophysicalEvents.put(sat, tempList);
+                        imagedGeophysicalEvents.put(sat, new ArrayList<>());
                         localRewardGrids.put(sat, centralRewardGrid);
                         makePlan(sat,settings);
                         break;
@@ -127,7 +130,7 @@ public class Simulator {
                     case "image": {
                         updateLocalRewardGrid(sat, planExec.getRewardGridUpdates());
                         updateGlobalRewardGrid(planExec.getRewardGridUpdates());
-                        imagedChlorophyllEvents.get(sat).addAll(planExec.getChlorophyllEvents());
+                        imagedGeophysicalEvents.get(sat).addAll(planExec.getGeophysicalEvents());
                         for (String otherSat : crosslinkInfo.get(sat).keySet()) {
                             crosslinkInfo.get(sat).put(otherSat, "new info");
                         }
@@ -145,49 +148,134 @@ public class Simulator {
             currentTime = earliestStopTime;
         }
         System.out.println("Done!");
+//        double totalReward = 0.0;
+//        double naiveReward = 0.0;
+//        int observationCount = 0;
+//        int naiveObservationCount = 0;
+//        int chargeCount = 0;
+//        int naiveChargeCount = 0;
+//        int imagingCount = 0;
+//        int naiveImagingCount = 0;
+//        int downlinkCount = 0;
+//        int naiveDownlinkCount = 0;
+//        Map<GeodeticPoint,ArrayList<GeophysicalEvent>> geophysicalObsTracker = new HashMap<>();
+//        for (String sat : downlinkEvents.keySet()) {
+//            totalReward = totalReward + rewardDownlinked.get(sat);
+//            naiveReward = naiveReward + naiveRewardDownlinked.get(sat);
+//            observationCount += downlinkedGeophysicalEvents.get(sat).size();
+//            naiveObservationCount += naiveDownlinkedGeophysicalEvents.get(sat).size();
+//            for(GeophysicalEvent chlEvent : downlinkedGeophysicalEvents.get(sat)) {
+//                if(!geophysicalObsTracker.containsKey(chlEvent.getLocation())) {
+//                    ArrayList<GeophysicalEvent> chlEventsPerPoint = new ArrayList<>();
+//                    chlEventsPerPoint.add(chlEvent);
+//                    geophysicalObsTracker.put(chlEvent.getLocation(),chlEventsPerPoint);
+//                } else {
+//                    ArrayList<GeophysicalEvent> chlEventsPerPoint = geophysicalObsTracker.get(chlEvent.getLocation());
+//                    chlEventsPerPoint.add(chlEvent);
+//                    geophysicalObsTracker.put(chlEvent.getLocation(),chlEventsPerPoint);
+//                }
+//            }
+//            for (SatelliteAction sa : actionsTaken.get(sat)) {
+//                switch (sa.getActionType()) {
+//                    case "charge" -> chargeCount++;
+//                    case "imaging" -> imagingCount++;
+//                    case "downlink" -> downlinkCount++;
+//                }
+//            }
+//            for (SatelliteAction sa : naiveActionsTaken.get(sat)) {
+//                switch (sa.getActionType()) {
+//                    case "charge" -> naiveChargeCount++;
+//                    case "imaging" -> naiveImagingCount++;
+//                    case "downlink" -> naiveDownlinkCount++;
+//                }
+//            }
+//        }
+//        results.put("smart",totalReward);
+//        results.put("naive",naiveReward);
+//        results.put("chl count smart",(double)observationCount);
+//        results.put("chl count naive",(double)naiveObservationCount);
+//        Map<GeodeticPoint,Integer> omniscientGeophysicalObsTracker = new HashMap<>();
+//        ArrayList<GeodeticPoint> gps = new ArrayList<>(globalRewardGrid.keySet());
+//        int count = 0;
+//        for (GeodeticPoint gp : gps) {
+//            if(processImage(gp)) {
+//                count++;
+//            }
+//        }
+//        System.out.println("Total number of geophysical bloom GPs: "+count);
+//        for(String sat : satList) {
+//            ArrayList<Observation> obsList = observationEvents.get(sat);
+//            for(Observation obs : obsList) {
+//                if(processImage(obs.getObservationPoint())) {
+//                    if(!omniscientGeophysicalObsTracker.containsKey(obs.getObservationPoint())) {
+//                        omniscientGeophysicalObsTracker.put(obs.getObservationPoint(),1);
+//                    } else {
+//                        omniscientGeophysicalObsTracker.put(obs.getObservationPoint(),omniscientGeophysicalObsTracker.get(obs.getObservationPoint())+1);
+//                    }
+//                }
+//            }
+//        }
+//        int repeatCount = 0;
+//        int repeatSum = 0;
+//        for(GeodeticPoint gp : geophysicalObsTracker.keySet()) {
+//            int numRepeatObservations = geophysicalObsTracker.get(gp).size() - 1;
+//            if(numRepeatObservations > 0) {
+//                repeatCount++;
+//            }
+//            repeatSum+=numRepeatObservations;
+//        }
+//        int repeatAvg = repeatSum/count;
+//        if(debug) {
+//            System.out.println("Charge count: "+chargeCount);
+//            System.out.println("Naive charge count: "+naiveChargeCount);
+//            System.out.println("Imaging count: "+imagingCount);
+//            System.out.println("Naive imaging count: "+naiveImagingCount);
+//            System.out.println("Downlink count: "+downlinkCount);
+//            System.out.println("Naive downlink count: "+naiveDownlinkCount);
+//            System.out.println("Total reward: "+totalReward);
+//            System.out.println("Naive reward: "+naiveReward);
+//            System.out.println("Total count: "+observationCount);
+//            System.out.println("Naive count: "+naiveObservationCount);
+//        }
+        computeStatistics("Reactive",rewardDownlinked,downlinkedGeophysicalEvents,actionsTaken);
+        computeStatistics("Non-reactive",naiveRewardDownlinked,naiveDownlinkedGeophysicalEvents,naiveActionsTaken);
+        long end = System.nanoTime();
+        System.out.printf("Took %.4f sec\n", (end - start) / Math.pow(10, 9));
+    }
+
+    public void computeStatistics(String flag, Map<String,Double> downlinkedReward, Map<String,ArrayList<GeophysicalEvent>> geophysicalEventsDownlinked, Map<String, ArrayList<SatelliteAction>> takenActions) {
         double totalReward = 0.0;
-        double naiveReward = 0.0;
         int observationCount = 0;
-        int naiveObservationCount = 0;
         int chargeCount = 0;
-        int naiveChargeCount = 0;
         int imagingCount = 0;
-        int naiveImagingCount = 0;
         int downlinkCount = 0;
-        int naiveDownlinkCount = 0;
-        Map<GeodeticPoint,Integer> chlorophyllObsTracker = new HashMap<>();
+        ArrayList<String> satList = new ArrayList<>(downlinkEvents.keySet());
+        Map<GeodeticPoint,ArrayList<GeophysicalEvent>> geophysicalObsTracker = new HashMap<>();
         for (String sat : downlinkEvents.keySet()) {
-            totalReward = totalReward + rewardDownlinked.get(sat);
-            naiveReward = naiveReward + naiveRewardDownlinked.get(sat);
-            observationCount += downlinkedChlorophyllEvents.get(sat).size();
-            naiveObservationCount += naiveDownlinkedChlorophyllEvents.get(sat).size();
-            for(ChlorophyllEvent chlEvent : downlinkedChlorophyllEvents.get(sat)) {
-                if(!chlorophyllObsTracker.containsKey(chlEvent.getLocation())) {
-                    chlorophyllObsTracker.put(chlEvent.getLocation(),1);
+            totalReward = totalReward + downlinkedReward.get(sat);
+            observationCount += geophysicalEventsDownlinked.get(sat).size();
+            for(GeophysicalEvent chlEvent : geophysicalEventsDownlinked.get(sat)) {
+                if(!geophysicalObsTracker.containsKey(chlEvent.getLocation())) {
+                    ArrayList<GeophysicalEvent> chlEventsPerPoint = new ArrayList<>();
+                    chlEventsPerPoint.add(chlEvent);
+                    geophysicalObsTracker.put(chlEvent.getLocation(),chlEventsPerPoint);
                 } else {
-                    chlorophyllObsTracker.put(chlEvent.getLocation(),chlorophyllObsTracker.get(chlEvent.getLocation())+1);
+                    ArrayList<GeophysicalEvent> chlEventsPerPoint = geophysicalObsTracker.get(chlEvent.getLocation());
+                    chlEventsPerPoint.add(chlEvent);
+                    geophysicalObsTracker.put(chlEvent.getLocation(),chlEventsPerPoint);
                 }
             }
-            for (SatelliteAction sa : actionsTaken.get(sat)) {
+            for (SatelliteAction sa : takenActions.get(sat)) {
                 switch (sa.getActionType()) {
                     case "charge" -> chargeCount++;
                     case "imaging" -> imagingCount++;
                     case "downlink" -> downlinkCount++;
                 }
             }
-            for (SatelliteAction sa : naiveActionsTaken.get(sat)) {
-                switch (sa.getActionType()) {
-                    case "charge" -> naiveChargeCount++;
-                    case "imaging" -> naiveImagingCount++;
-                    case "downlink" -> naiveDownlinkCount++;
-                }
-            }
         }
-        results.put("smart",totalReward);
-        results.put("naive",naiveReward);
-        results.put("chl count smart",(double)observationCount);
-        results.put("chl count naive",(double)naiveObservationCount);
-        Map<GeodeticPoint,Integer> omniscientChlorophyllObsTracker = new HashMap<>();
+        results.put(flag,totalReward);
+        results.put("chl count "+flag,(double)observationCount);
+        Map<GeodeticPoint,Integer> omniscientGeophysicalObsTracker = new HashMap<>();
         ArrayList<GeodeticPoint> gps = new ArrayList<>(globalRewardGrid.keySet());
         int count = 0;
         for (GeodeticPoint gp : gps) {
@@ -195,53 +283,61 @@ public class Simulator {
                 count++;
             }
         }
-        System.out.println("Total number of chlorophyll bloom GPs: "+count);
+        System.out.println("Total number of geophysical bloom GPs: "+count);
         for(String sat : satList) {
             ArrayList<Observation> obsList = observationEvents.get(sat);
             for(Observation obs : obsList) {
                 if(processImage(obs.getObservationPoint())) {
-                    if(!omniscientChlorophyllObsTracker.containsKey(obs.getObservationPoint())) {
-                        omniscientChlorophyllObsTracker.put(obs.getObservationPoint(),1);
+                    if(!omniscientGeophysicalObsTracker.containsKey(obs.getObservationPoint())) {
+                        omniscientGeophysicalObsTracker.put(obs.getObservationPoint(),1);
                     } else {
-                        omniscientChlorophyllObsTracker.put(obs.getObservationPoint(),omniscientChlorophyllObsTracker.get(obs.getObservationPoint())+1);
+                        omniscientGeophysicalObsTracker.put(obs.getObservationPoint(),omniscientGeophysicalObsTracker.get(obs.getObservationPoint())+1);
                     }
                 }
             }
         }
-        if(debug) {
-            System.out.println("Charge count: "+chargeCount);
-            System.out.println("Naive charge count: "+naiveChargeCount);
-            System.out.println("Imaging count: "+imagingCount);
-            System.out.println("Naive imaging count: "+naiveImagingCount);
-            System.out.println("Downlink count: "+downlinkCount);
-            System.out.println("Naive downlink count: "+naiveDownlinkCount);
-            System.out.println("Total reward: "+totalReward);
-            System.out.println("Naive reward: "+naiveReward);
-            System.out.println("Total count: "+observationCount);
-            System.out.println("Naive count: "+naiveObservationCount);
+        int repeatCount = 0;
+        int repeatSum = 0;
+        int uniqueCount = 0;
+        for(GeodeticPoint gp : geophysicalObsTracker.keySet()) {
+            System.out.println(geophysicalObsTracker.get(gp).size());
+            int numRepeatObservations = geophysicalObsTracker.get(gp).size() - 1;
+            if(numRepeatObservations > 0) {
+                repeatCount++;
+            } else {
+                uniqueCount++;
+            }
+            repeatSum+=numRepeatObservations;
         }
-        long end = System.nanoTime();
-        System.out.printf("Took %.4f sec\n", (end - start) / Math.pow(10, 9));
+        double repeatAvg = (double)repeatSum / geophysicalObsTracker.size();
+        System.out.println(flag+" charge count: "+chargeCount);
+        System.out.println(flag+" imaging count: "+imagingCount);
+        System.out.println(flag+" downlink count: "+downlinkCount);
+        System.out.println(flag+" total reward: "+totalReward);
+        System.out.println(flag+" total count: "+observationCount);
+        System.out.println(flag+" average repeat observations: "+repeatAvg);
+        System.out.println(flag+" number of revisited locations: "+repeatCount);
+        System.out.println(flag+" number of single observations: "+uniqueCount);
     }
 
-    public void updateGlobalRewardGrid(Map<GeodeticPoint,ChlorophyllEvent> updates) {
+    public void updateGlobalRewardGrid(Map<GeodeticPoint,GeophysicalEvent> updates) {
         for(GeodeticPoint gp : updates.keySet()) {
             globalRewardGrid.put(gp,chlReward);
         }
         globalRewardGridUpdates.add(updates);
     }
-    public void updateNaiveGlobalRewardGrid(Map<GeodeticPoint,ChlorophyllEvent> updates) {
+    public void updateNaiveGlobalRewardGrid(Map<GeodeticPoint,GeophysicalEvent> updates) {
         for(GeodeticPoint gp : updates.keySet()) {
             naiveGlobalRewardGrid.put(gp,chlReward);
         }
         naiveGlobalRewardGridUpdates.add(updates);
     }
-    public void updateCentralRewardGrid(Map<GeodeticPoint,ChlorophyllEvent> updates) {
+    public void updateCentralRewardGrid(Map<GeodeticPoint,GeophysicalEvent> updates) {
         for(GeodeticPoint gp : updates.keySet()) {
             centralRewardGrid.put(gp,chlReward);
         }
     }
-    public void updateLocalRewardGrid(String sat, Map<GeodeticPoint,ChlorophyllEvent> updates) {
+    public void updateLocalRewardGrid(String sat, Map<GeodeticPoint,GeophysicalEvent> updates) {
         Map<GeodeticPoint,Double> oldRewardGrid = localRewardGrids.get(sat);
         for(GeodeticPoint gp : updates.keySet()) {
             oldRewardGrid.put(gp,chlReward);
@@ -249,7 +345,7 @@ public class Simulator {
         localRewardGrids.put(sat,oldRewardGrid);
     }
 
-    public void checkCrosslinks(String sat, double currentTime, double endTime, Map<GeodeticPoint,ChlorophyllEvent> updates) {
+    public void checkCrosslinks(String sat, double currentTime, double endTime, Map<GeodeticPoint,GeophysicalEvent> updates) {
         Map<String, TimeIntervalArray> crosslinksBySat = crosslinkEvents.get(sat);
         for(String clSat : crosslinksBySat.keySet()) {
             TimeIntervalArray clArray = crosslinksBySat.get(clSat);
@@ -283,9 +379,9 @@ public class Simulator {
         }
     }
 
-    public void loadChlorophyll() {
-        List<List<String>> chlorophyllBaselines = new ArrayList<>();
-        List<List<String>> chlorophyllRecents = new ArrayList<>();
+    public void loadGeophysical() {
+        List<List<String>> geophysicalBaselines = new ArrayList<>();
+        List<List<String>> geophysicalRecents = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new FileReader("./src/test/resources/chlorophyll_baseline.csv"))) {
             String line;
             int count = 0;
@@ -295,43 +391,43 @@ public class Simulator {
                     continue;
                 }
                 String[] values = line.split(",");
-                chlorophyllBaselines.add(Arrays.asList(values));
+                geophysicalBaselines.add(Arrays.asList(values));
             }
         } catch (Exception e) {
             System.out.println("Exception occurred in loadCoveragePoints: " + e);
         }
-        for (List<String> chlorophyllBaseline : chlorophyllBaselines) {
-            double lon = Math.toRadians(parseDouble(chlorophyllBaseline.get(0)));
-            double lat = Math.toRadians(parseDouble(chlorophyllBaseline.get(1)));
-            double mean = parseDouble(chlorophyllBaseline.get(2));
-            double sd = parseDouble(chlorophyllBaseline.get(3));
+        for (List<String> geophysicalBaseline : geophysicalBaselines) {
+            double lon = Math.toRadians(parseDouble(geophysicalBaseline.get(0)));
+            double lat = Math.toRadians(parseDouble(geophysicalBaseline.get(1)));
+            double mean = parseDouble(geophysicalBaseline.get(2));
+            double sd = parseDouble(geophysicalBaseline.get(3));
             GeodeticPoint chloroPoint = new GeodeticPoint(lat, lon, 0.0);
-            chlorophyllLimits.put(chloroPoint, mean + sd);
+            geophysicalLimits.put(chloroPoint, mean + sd);
         }
         try (BufferedReader br = new BufferedReader(new FileReader("./src/test/resources/chlorophyll_recent.csv"))) {
             String line;
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
-                chlorophyllRecents.add(Arrays.asList(values));
+                geophysicalRecents.add(Arrays.asList(values));
             }
         } catch (Exception e) {
             System.out.println("Exception occurred in loadCoveragePoints: " + e);
         }
-        for (int i = 0; i < chlorophyllRecents.size(); i++) {
-            double lon = Math.toRadians(parseDouble(chlorophyllBaselines.get(i).get(0)));
-            double lat = Math.toRadians(parseDouble(chlorophyllBaselines.get(i).get(1)));
-            double chl = parseDouble(chlorophyllRecents.get(i).get(2));
+        for (int i = 0; i < geophysicalRecents.size(); i++) {
+            double lon = Math.toRadians(parseDouble(geophysicalBaselines.get(i).get(0)));
+            double lat = Math.toRadians(parseDouble(geophysicalBaselines.get(i).get(1)));
+            double chl = parseDouble(geophysicalRecents.get(i).get(2));
             GeodeticPoint chloroPoint = new GeodeticPoint(lat, lon, 0.0);
-            currentChlorophyll.put(chloroPoint, chl);
+            currentGeophysical.put(chloroPoint, chl);
         }
     }
     public boolean processImage(GeodeticPoint location) {
         double limit = 0;
         double current = 0;
-        for(GeodeticPoint gp : chlorophyllLimits.keySet()) {
+        for(GeodeticPoint gp : geophysicalLimits.keySet()) {
             if(Math.sqrt(Math.pow(location.getLatitude()-gp.getLatitude(),2)+Math.pow(location.getLongitude()-gp.getLongitude(),2)) < 0.00001) {
-                limit = chlorophyllLimits.get(gp);
-                current = currentChlorophyll.get(gp);
+                limit = geophysicalLimits.get(gp);
+                current = currentGeophysical.get(gp);
                 break;
             }
         }
@@ -395,7 +491,7 @@ public class Simulator {
                 ObjectInputStream oi = new ObjectInputStream(fi);
 
                 globalRewardGrid =  (Map<GeodeticPoint,Double>) oi.readObject();
-                globalRewardGrid.replaceAll((g, v) -> 0.0);
+                globalRewardGrid.replaceAll((g, v) -> 1.0);
                 naiveGlobalRewardGrid = new HashMap<>(globalRewardGrid);
                 centralRewardGrid = new HashMap<>(globalRewardGrid);
 
