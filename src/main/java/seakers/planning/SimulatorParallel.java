@@ -178,16 +178,28 @@ public class SimulatorParallel implements Callable<Map<String,Double>> {
             }
             for (SatelliteAction sa : actionsTaken.get(sat)) {
                 switch (sa.getActionType()) {
-                    case "charge" -> chargeCount++;
-                    case "imaging" -> imagingCount++;
-                    case "downlink" -> downlinkCount++;
+                    case "charge":
+                        chargeCount++;
+                        break;
+                    case "imaging":
+                        imagingCount++;
+                        break;
+                    case "downlink":
+                        downlinkCount++;
+                        break;
                 }
             }
             for (SatelliteAction sa : naiveActionsTaken.get(sat)) {
                 switch (sa.getActionType()) {
-                    case "charge" -> naiveChargeCount++;
-                    case "imaging" -> naiveImagingCount++;
-                    case "downlink" -> naiveDownlinkCount++;
+                    case "charge":
+                        naiveChargeCount++;
+                        break;
+                    case "imaging":
+                        naiveImagingCount++;
+                        break;
+                    case "downlink":
+                        naiveDownlinkCount++;
+                        break;
                 }
             }
         }
@@ -434,18 +446,18 @@ public class SimulatorParallel implements Callable<Map<String,Double>> {
 
     public void makePlan(String sat, Map<String,String> settings) {
         switch (settings.get("planner")) {
-            case "ruleBased" -> {
+            case "ruleBased":
                 RuleBasedPlanner ruleBasedPlanner = new RuleBasedPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                 currentPlans.put(sat, ruleBasedPlanner.getResults());
-            }
-            case "mcts" -> {
+                break;
+            case "mcts":
                 MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                 currentPlans.put(sat, mctsPlanner.getResults());
-            }
-            case "dumbMcts" -> {
+                break;
+            case "dumbMcts":
                 DumbMCTSPlanner dumbMctsPlanner = new DumbMCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                 currentPlans.put(sat, dumbMctsPlanner.getResults());
-            }
+                break;
         }
     }
 

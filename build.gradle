@@ -34,6 +34,9 @@ dependencies {
     implementation 'org.orekit:orekit:10.1'
     implementation 'seakers:orekit:1.0'
     implementation group: 'org.geotools', name: 'gt-shapefile', version: '26.0'
+    implementation group: 'org.geotools', name: 'gt-swing', version: '26.0'
+    // https://mvnrepository.com/artifact/org.geotools/gt-swing
+    implementation 'org.geotools:gt-swing:26.0'
     // https://mvnrepository.com/artifact/org.apache.commons/commons-collections4
     implementation 'org.apache.commons:commons-collections4:4.4'
     // https://mvnrepository.com/artifact/com.googlecode.json-simple/json-simple

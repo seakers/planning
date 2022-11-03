@@ -181,9 +181,15 @@ public class TimeVaryingEventSimulator {
             }
             for (SatelliteAction sa : takenActions.get(sat)) {
                 switch (sa.getActionType()) {
-                    case "charge" -> chargeCount++;
-                    case "imaging" -> imagingCount++;
-                    case "downlink" -> downlinkCount++;
+                    case "charge":
+                        chargeCount++;
+                        break;
+                    case "imaging":
+                        imagingCount++;
+                        break;
+                    case "downlink":
+                        downlinkCount++;
+                        break;
                 }
             }
         }
@@ -455,10 +461,10 @@ public class TimeVaryingEventSimulator {
 
     public void makePlan(String sat, Map<String,String> settings) {
         switch (settings.get("planner")) {
-            case "ruleBased" -> {
+            case "ruleBased":
                 TimeVaryingEventRuleBasedPlanner ruleBasedPlanner = new TimeVaryingEventRuleBasedPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                 currentPlans.put(sat, ruleBasedPlanner.getResults());
-            }
+                break;
 //            case "mcts" -> {
 //                MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
 //                currentPlans.put(sat, mctsPlanner.getResults());

@@ -193,10 +193,12 @@ public class DumbMCTSPlanner {
     public double rewardFunction(SatelliteState s, SatelliteAction a){
         double score = 0.0;
         switch (a.getActionType()) {
-            case "imaging" -> score = 1.0;
-            case "downlink" -> {
+            case "imaging":
+                score = 1.0;
+                break;
+            case "downlink":
                 score = s.getStoredImageReward();
-            }
+                break;
         }
         return score;
     }
@@ -211,15 +213,17 @@ public class DumbMCTSPlanner {
         double dataStored = s.getDataStored();
         double currentAngle = s.getCurrentAngle();
         switch (a.getActionType()) {
-            case "charge" -> batteryCharge = batteryCharge + (a.gettEnd() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600; // Wh
-            case "imaging" -> {
+            case "charge":
+                batteryCharge = batteryCharge + (a.gettEnd() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600; // Wh
+                break;
+            case "imaging":
                 currentAngle = a.getAngle();
                 batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower")) / 3600;
                 batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("cameraOnPower")) / 3600;
                 storedImageReward = storedImageReward + a.getReward();
-            }
+                break;
             // insert reward grid update here
-            case "downlink" -> {
+            case "downlink":
                 dataStored = dataStored - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("downlinkSpeedMbps"));
                 batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower")) / 3600;
                 batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("downlinkOnPower")) / 3600;
@@ -227,7 +231,7 @@ public class DumbMCTSPlanner {
                     dataStored = 0;
                 }
                 storedImageReward = 0.0;
-            }
+                break;
         }
         return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward);
     }

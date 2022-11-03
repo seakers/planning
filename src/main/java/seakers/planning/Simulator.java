@@ -32,6 +32,7 @@ public class Simulator {
     public Map<String, SatelliteState> currentStates;
     public Map<GeodeticPoint,Double> geophysicalLimits;
     public Map<GeodeticPoint,Double> currentGeophysical;
+    public Map<GeodeticPoint,ArrayList<GeophysicalEvent>> geophysicalObsTracker;
     public double chlReward;
     boolean debug;
     public double endTime;
@@ -250,7 +251,7 @@ public class Simulator {
         int imagingCount = 0;
         int downlinkCount = 0;
         ArrayList<String> satList = new ArrayList<>(downlinkEvents.keySet());
-        Map<GeodeticPoint,ArrayList<GeophysicalEvent>> geophysicalObsTracker = new HashMap<>();
+        geophysicalObsTracker = new HashMap<>();
         for (String sat : downlinkEvents.keySet()) {
             totalReward = totalReward + downlinkedReward.get(sat);
             observationCount += geophysicalEventsDownlinked.get(sat).size();
@@ -267,9 +268,15 @@ public class Simulator {
             }
             for (SatelliteAction sa : takenActions.get(sat)) {
                 switch (sa.getActionType()) {
-                    case "charge" -> chargeCount++;
-                    case "imaging" -> imagingCount++;
-                    case "downlink" -> downlinkCount++;
+                    case "charge":
+                        chargeCount++;
+                        break;
+                    case "imaging":
+                        imagingCount++;
+                        break;
+                    case "downlink":
+                        downlinkCount++;
+                        break;
                 }
             }
         }
@@ -517,18 +524,18 @@ public class Simulator {
 
     public void makePlan(String sat, Map<String,String> settings) {
         switch (settings.get("planner")) {
-            case "ruleBased" -> {
+            case "ruleBased":
                 RuleBasedPlanner ruleBasedPlanner = new RuleBasedPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                 currentPlans.put(sat, ruleBasedPlanner.getResults());
-            }
-            case "mcts" -> {
+                break;
+            case "mcts":
                 MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                 currentPlans.put(sat, mctsPlanner.getResults());
-            }
-            case "dumbMcts" -> {
+                break;
+            case "dumbMcts":
                 DumbMCTSPlanner dumbMctsPlanner = new DumbMCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                 currentPlans.put(sat, dumbMctsPlanner.getResults());
-            }
+                break;
         }
     }
 

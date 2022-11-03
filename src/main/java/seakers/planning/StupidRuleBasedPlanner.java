@@ -62,21 +62,23 @@ public class StupidRuleBasedPlanner {
         double currentAngle = s.getCurrentAngle();
         System.out.println(s.getDataStored());
         switch (a.getActionType()) {
-            case "charge" -> batteryCharge = batteryCharge + (a.gettEnd()-s.getT())*Double.parseDouble(settings.get("chargePower")) / 3600;
-            case "imaging" -> {
+            case "charge":
+                batteryCharge = batteryCharge + (a.gettEnd()-s.getT())*Double.parseDouble(settings.get("chargePower")) / 3600;
+                break;
+            case "imaging":
                 currentAngle = a.getAngle();
                 batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower")) / 3600;
                 batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("cameraOnPower")) / 3600;
                 dataStored += 1.0; // 1 Mbps per picture
-            }
-            case "downlink" -> {
+                break;
+            case "downlink":
                 dataStored = dataStored - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("downlinkSpeedMbps"));
                 batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower")) / 3600;
                 batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("downlinkOnPower")) / 3600;
                 if (dataStored < 0) {
                     dataStored = 0;
                 }
-            }
+                break;
 
         }
         return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward);

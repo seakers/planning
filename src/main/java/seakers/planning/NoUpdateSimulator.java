@@ -111,9 +111,15 @@ public class NoUpdateSimulator {
             }
             for (SatelliteAction sa : naiveActionsTaken.get(sat)) {
                 switch (sa.getActionType()) {
-                    case "charge" -> naiveChargeCount++;
-                    case "imaging" -> naiveImagingCount++;
-                    case "downlink" -> naiveDownlinkCount++;
+                    case "charge":
+                        naiveChargeCount++;
+                        break;
+                    case "imaging":
+                        naiveImagingCount++;
+                        break;
+                    case "downlink":
+                        naiveDownlinkCount++;
+                        break;
                 }
             }
         }
@@ -348,22 +354,22 @@ public class NoUpdateSimulator {
 
     public void makePlan(String sat, Map<String,String> settings) {
         switch (settings.get("planner")) {
-            case "ruleBased" -> {
+            case "ruleBased":
                 RuleBasedPlanner ruleBasedPlanner = new RuleBasedPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                 currentPlans.put(sat, ruleBasedPlanner.getResults());
-            }
-            case "stupidRuleBased" -> {
-                StupidRuleBasedPlanner ruleBasedPlanner = new StupidRuleBasedPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
-                currentPlans.put(sat, ruleBasedPlanner.getResults());
-            }
-            case "mcts" -> {
+                break;
+            case "stupidRuleBased":
+                StupidRuleBasedPlanner stupidRuleBasedPlanner = new StupidRuleBasedPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
+                currentPlans.put(sat, stupidRuleBasedPlanner.getResults());
+                break;
+            case "mcts":
                 MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                 currentPlans.put(sat, mctsPlanner.getResults());
-            }
-            case "dumbMcts" -> {
+                break;
+            case "dumbMcts":
                 DumbMCTSPlanner dumbMctsPlanner = new DumbMCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                 currentPlans.put(sat, dumbMctsPlanner.getResults());
-            }
+                break;
         }
     }
 

@@ -198,12 +198,17 @@ public class MCTSPlanner {
     public double rewardFunction(SatelliteState s, SatelliteAction a){
         double score = 0.0;
         switch (a.getActionType()) {
-            case "charge" -> score = 1e-4 * (a.gettStart() - s.getT());
-            case "imaging" -> score = a.getReward() * Math.pow(gamma, (a.gettStart() - s.getT()));
-            case "downlink" -> {
+            case "charge":
+                score = 1e-4 * (a.gettStart() - s.getT());
+                break;
+            case "imaging":
+                score = a.getReward() * Math.pow(gamma, (a.gettStart() - s.getT()));
+                break;
+            case "downlink":
                 double dataFracDownlinked = ((a.gettEnd() - a.gettStart()) * 0.1) / s.getDataStored();
                 score = 0.0 * (a.gettStart() - s.getT());
-            }
+                break;
+
         }
         if(s.getBatteryCharge() < 15) {
             score = -1000;
@@ -224,16 +229,17 @@ public class MCTSPlanner {
         double dataStored = s.getDataStored();
         double currentAngle = s.getCurrentAngle();
         switch (a.getActionType()) {
-            case "charge" -> batteryCharge = batteryCharge + (a.gettEnd() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600; // Wh
-            case "imaging" -> {
+            case "charge":batteryCharge = batteryCharge + (a.gettEnd() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600; // Wh
+                break;
+            case "imaging":
                 currentAngle = a.getAngle();
                 batteryCharge = batteryCharge + (a.gettStart()-s.getT())*Double.parseDouble(settings.get("chargePower")) / 3600;
                 batteryCharge = batteryCharge - (a.gettEnd()-a.gettStart())*Double.parseDouble(settings.get("cameraOnPower")) / 3600;
                 dataStored += 1.0; // 1 Mbps per picture
                 storedImageReward += a.getReward();
-            }
+                break;
             // insert reward grid update here
-            case "downlink" -> {
+                case "downlink":
                 batteryCharge = batteryCharge + (a.gettStart() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600;
                 batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("downlinkOnPower")) / 3600;
                 double dataFracDownlinked = ((a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("downlinkSpeedMbps"))) / dataStored; // data is in Mb, 0.1 Mbps
@@ -243,7 +249,7 @@ public class MCTSPlanner {
                     dataFracDownlinked = 1.0;
                 }
                 storedImageReward -= storedImageReward * dataFracDownlinked;
-            }
+                break;
         }
         return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward);
     }

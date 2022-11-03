@@ -82,8 +82,10 @@ public class TimeVaryingEventNaivePlanExecutor {
         double dataStored = s.getDataStored();
         double currentAngle = s.getCurrentAngle();
         switch (a.getActionType()) {
-            case "charge" -> batteryCharge = batteryCharge + (a.gettEnd() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600; // Wh
-            case "imaging" -> {
+            case "charge":
+                batteryCharge = batteryCharge + (a.gettEnd() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600; // Wh
+                break;
+            case "imaging":
                 batteryCharge = batteryCharge + (a.gettStart() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600;
                 batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("cameraOnPower")) / 3600;
                 dataStored = dataStored + 1.0;
@@ -94,8 +96,8 @@ public class TimeVaryingEventNaivePlanExecutor {
                     satEventObservations.addAll(storedEventObservations);
                     storedImageReward = storedImageReward + Double.parseDouble(settings.get("chlBonusReward"));
                 }
-            }
-            case "downlink" -> {
+                break;
+            case "downlink":
                 batteryCharge = batteryCharge + (a.gettStart() - s.getT()) * Double.parseDouble(settings.get("chargePower")) / 3600;
                 batteryCharge = batteryCharge - (a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("downlinkOnPower")) / 3600;
                 double dataFracDownlinked = ((a.gettEnd() - a.gettStart()) * Double.parseDouble(settings.get("downlinkSpeedMbps"))) / dataStored; // data is in Mb, 0.1 Mbps
@@ -114,7 +116,7 @@ public class TimeVaryingEventNaivePlanExecutor {
                 currentDownlinkLog.add("Downlink from time " + a.gettStart() + " to time " + a.gettEnd());
                 downlinkedEventObservations.addAll(storedEventObservations);
                 storedEventObservations.clear();
-            }
+                break;
         }
         return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward,satGeophysicalEvents,satEventObservations,currentCrosslinkLog,currentDownlinkLog);
     }
