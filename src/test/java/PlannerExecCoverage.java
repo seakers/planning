@@ -17,11 +17,12 @@ public class PlannerExecCoverage {
         settings.put("downlinkOnPower","0.0");
         settings.put("crosslinkOnPower","0.0");
         settings.put("chlBonusReward","100.0");
-        settings.put("maxTorque","4e-5");
+        settings.put("maxTorque","4e-8");
         settings.put("planner","ruleBased");
         settings.put("resources","false");
-        EqualSimulator simulator = new EqualSimulator(settings);
+        String filepath = "./src/test/resources/plannerData/thirtydays_sixteensats_30deg";
+        EqualSimulator simulator = new EqualSimulator(settings,filepath);
         Map<String,Map<GeodeticPoint,Double[]>> plannerAccesses = simulator.getPlannerAccesses();
-        PlannerCoverageMetrics pcm = new PlannerCoverageMetrics("./src/test/resources/plannerData/oneday",plannerAccesses);
+        PlannerCoverageMetrics pcm = new PlannerCoverageMetrics(filepath,plannerAccesses);
     }
 }

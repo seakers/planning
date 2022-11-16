@@ -50,11 +50,13 @@ public class PlannerCoverageMetrics {
     public double durationDays;
     public AbsoluteDate startDate;
 
+    public Map<String, Map<TopocentricFrame,TimeIntervalArray>> accessEvents;
+
     private Properties propertiesPropagator;
 
     public PlannerCoverageMetrics(String plannerRepo, Map<String,Map<GeodeticPoint,Double[]>> plannerAccesses) {
         plannerRepoFilePath = plannerRepo;
-        durationDays = 1.0;
+        durationDays = 30.0;
         propertiesPropagator = new Properties();
         OrekitConfig.init(4);
         File orekitData = new File("./src/main/resources/orekitResources");
@@ -73,225 +75,197 @@ public class PlannerCoverageMetrics {
         startDate = new AbsoluteDate(2020, 1, 1, 10, 30, 00.000, utc);
         AbsoluteDate endDate = startDate.shiftedBy(durationDays*86400);
         double mu = Constants.WGS84_EARTH_MU;
-        Map<TopocentricFrame,TimeIntervalArray> fovEvents = new HashMap<>();
+        Map<GeodeticPoint,Double> covPoints = loadCoveragePoints();
+        ArrayList<TopocentricFrame> tfPoints = new ArrayList<>();
+        for (GeodeticPoint gp : covPoints.keySet()) {
+            tfPoints.add(new TopocentricFrame(earthShape,gp,""));
+        }
+        Map<TopocentricFrame,TimeIntervalArray> fovEventsPlanned = new HashMap<>();
+        Map<TopocentricFrame,TimeIntervalArray> fovEventsAll = new HashMap<>();
+        Map<TopocentricFrame,TimeIntervalArray> forEvents = new HashMap<>();
+        loadAccesses();
         for (String sat : plannerAccesses.keySet()){
             Map<GeodeticPoint,Double[]> plannerAccessesPerSat = plannerAccesses.get(sat);
             for (GeodeticPoint gp : plannerAccessesPerSat.keySet()) {
-                TopocentricFrame tf = new TopocentricFrame(earthShape,gp,"");
-                TimeIntervalArray tia = new TimeIntervalArray(startDate,endDate);
-                tia.addRiseTime(plannerAccessesPerSat.get(gp)[0]);
-                tia.addSetTime(plannerAccessesPerSat.get(gp)[1]);
-                fovEvents.put(tf,tia);
+                boolean unique = true;
+                for(TopocentricFrame tf : fovEventsPlanned.keySet()) {
+                    if(tf.getPoint().getLatitude() == gp.getLatitude() && tf.getPoint().getLongitude() == gp.getLongitude()) {
+                        TimeIntervalArray tia = fovEventsPlanned.get(tf);
+                        TimeIntervalArray tia2 = new TimeIntervalArray(startDate,endDate);
+                        tia2.addRiseTime(plannerAccessesPerSat.get(gp)[0]);
+                        tia2.addSetTime(plannerAccessesPerSat.get(gp)[1]);
+                        ArrayList<TimeIntervalArray> tias = new ArrayList<>();
+                        tias.add(tia);
+                        tias.add(tia2);
+                        TimeIntervalMerger merger = new TimeIntervalMerger(tias);
+                        TimeIntervalArray combinedArray = merger.orCombine();
+                        fovEventsPlanned.put(tf,combinedArray);
+                        unique = false;
+                    }
+                }
+                if(unique) {
+                    TopocentricFrame tf = new TopocentricFrame(earthShape,gp,"");
+                    TimeIntervalArray tia = new TimeIntervalArray(startDate,endDate);
+                    tia.addRiseTime(plannerAccessesPerSat.get(gp)[0]);
+                    tia.addSetTime(plannerAccessesPerSat.get(gp)[1]);
+                    fovEventsPlanned.put(tf,tia);
+                }
+            }
+        }
+        for (TopocentricFrame tf : tfPoints) {
+            TimeIntervalArray tiamerged = new TimeIntervalArray(startDate,endDate);
+            for(String sat : plannerAccesses.keySet()) {
+                Map<GeodeticPoint,Double[]> plannerAccessesPerSat = plannerAccesses.get(sat);
+                for(GeodeticPoint gp : plannerAccessesPerSat.keySet()) {
+                    if(tf.getPoint().getLatitude() == gp.getLatitude() && tf.getPoint().getLongitude() == gp.getLongitude()) {
+                        TimeIntervalArray tia = new TimeIntervalArray(startDate,endDate);
+                        tia.addRiseTime(plannerAccessesPerSat.get(gp)[0]);
+                        tia.addSetTime(plannerAccessesPerSat.get(gp)[1]);
+                        ArrayList<TimeIntervalArray> tias = new ArrayList<>();
+                        tias.add(tia);
+                        tias.add(tiamerged);
+                        TimeIntervalMerger merger = new TimeIntervalMerger(tias);
+                        tiamerged = merger.orCombine();
+                    }
+                }
+            }
+            fovEventsAll.put(tf,tiamerged);
+        }
+        forEvents = accessEvents.get("smallsat00");
+        for(String sat : accessEvents.keySet()) {
+            Map<TopocentricFrame, TimeIntervalArray> forAccessesPerSat = accessEvents.get(sat);
+            for (TopocentricFrame tf : forAccessesPerSat.keySet()) {
+                for(TopocentricFrame tf2 : forEvents.keySet()) {
+                    if(tf.getPoint().getLatitude() == tf2.getPoint().getLatitude() && tf.getPoint().getLongitude() == tf2.getPoint().getLongitude()) {
+                        TimeIntervalArray tia = forEvents.get(tf);
+                        TimeIntervalArray tia2 = forAccessesPerSat.get(tf2);
+                        ArrayList<TimeIntervalArray> tias = new ArrayList<>();
+                        tias.add(tia);
+                        tias.add(tia2);
+                        TimeIntervalMerger merger = new TimeIntervalMerger(tias);
+                        TimeIntervalArray combinedArray = merger.orCombine();
+                        forEvents.put(tf,combinedArray);
+                    }
+                }
             }
         }
         double[] latBounds = new double[]{FastMath.toRadians(-75), FastMath.toRadians(75)};
         double[] lonBounds = new double[]{FastMath.toRadians(-180), FastMath.toRadians(180)};
-        double fovAvgRevisit = getRevisitTime(fovEvents,latBounds,lonBounds)/3600;
-        double fovMaxRevisit = getMaxRevisitTime(fovEvents,latBounds,lonBounds)/3600;
-        double fovPercentCoverage = getPercentCoverage(fovEvents,latBounds,lonBounds);
-        System.out.println("FOV revisit time: "+fovAvgRevisit);
-        System.out.println("FOV revisit time: "+fovMaxRevisit);
-        System.out.println("FOV revisit time: "+fovPercentCoverage);
-        // Initializing
-        ArrayList<Satellite> imagers = new ArrayList<>();
-        Collection<Instrument> ssPayload = new ArrayList<>();
-        double ssCrossFOVRadians = Math.toRadians(30.0);
-        double ssAlongFOVRadians = Math.toRadians(1.0);
-        NadirRectangularFOV ssFOV = new NadirRectangularFOV(ssCrossFOVRadians,ssAlongFOVRadians,0.0,earthShape);
-        Instrument ssImager = new Instrument("Smallsat imager", ssFOV, 100.0, 100.0);
-        ssPayload.add(ssImager);
-        int r = 4;
-        int s = 4;
-        for(int m = 0; m < r; m++) {
-            for(int n = 0; n < s; n++) {
-                int pu = 360 / (r*s);
-                int delAnom = pu * r; //in plane spacing between satellites
-                int delRAAN = pu * s; //node spacing
-                int RAAN = delRAAN * m;
-                int f = 1;
-                int phasing = pu * f;
-                int anom = (n * delAnom + phasing * m);
-                Orbit ssOrbit = new KeplerianOrbit(6378000+500000, 0.0, FastMath.toRadians(90), 0.0, FastMath.toRadians(RAAN), FastMath.toRadians(anom), PositionAngle.MEAN, inertialFrame, startDate, mu);
-//                TransmitterAntenna tx = new TransmitterAntenna(1.0,Collections.singleton(S));
-//                ReceiverAntenna rx = new ReceiverAntenna(1.0,Collections.singleton(S));
-                Satellite smallsat = new Satellite("smallsat"+m+n, ssOrbit, ssPayload);
-                imagers.add(smallsat);
-            }
+        double fovAvgRevisitPlanned = getAverageRevisitTime(fovEventsPlanned,latBounds,lonBounds)/3600;
+        double fovMedRevisitPlanned = getMedianRevisitTime(fovEventsPlanned,latBounds,lonBounds)/3600;
+        double[] fovAvgRevisitsPlanned = getRevisits(fovEventsPlanned,latBounds,lonBounds);
+        for (int i = 0; i < fovAvgRevisitsPlanned.length; i++) {
+            fovAvgRevisitsPlanned[i] = fovAvgRevisitsPlanned[i]/3600;
         }
-        Map<GeodeticPoint,Double> covPointRewards = loadCoveragePoints();
-        NearEarthNetwork nen = new NearEarthNetwork();
-        Set<GndStation> nenStations = nen.getGroundStations();
-
-        String satelliteName = "";
-        ArrayList<Constellation> constellationArrayList = new ArrayList<>();
-        constellationArrayList.add(new Constellation("satellites", imagers));
-        Map<String, Map<String, TimeIntervalArray>> crosslinks = getCrosslinks(constellationArrayList);
-        int coverageGridGranularity = 20;
-        String dataFilePath = "./src/main/resources/orekitResources";
-        CoverageAnalysisModified coverageAnalysis = new CoverageAnalysisModified(1, coverageGridGranularity, false, true, dataFilePath);
-        List<Map<TopocentricFrame, TimeIntervalArray>> allEvents = new ArrayList<>();
-        for(Satellite imager : imagers) {
-            KeplerianOrbit orb = (KeplerianOrbit) imager.getOrbit();
-            Map<TopocentricFrame, TimeIntervalArray> accesses = coverageAnalysis.getAccesses(30.0, FastMath.toDegrees(orb.getI()), orb.getA()-6378000, 1, 1, FastMath.toDegrees(orb.getRightAscensionOfAscendingNode()), FastMath.toDegrees(orb.getTrueAnomaly()), "radiometer");
-            allEvents.add(accesses);
+        double[] fovAvgRevisitsAll = getRevisits(fovEventsAll,latBounds,lonBounds);
+        for (int i = 0; i < fovAvgRevisitsAll.length; i++) {
+            fovAvgRevisitsAll[i] = fovAvgRevisitsAll[i]/3600;
         }
-        Map<TopocentricFrame, TimeIntervalArray> mergedAllEvents = new HashMap<>(allEvents.get(0));
-        for (int i = 0; i < allEvents.size(); ++i) {
-            Map<TopocentricFrame, TimeIntervalArray> event = allEvents.get(i);
-            mergedAllEvents = EventIntervalMerger.merge(mergedAllEvents, event, false);
-        }
-        System.out.println(coverageAnalysis.getRevisitTime(mergedAllEvents, latBounds, lonBounds) / 3600);
-        System.out.println(coverageAnalysis.getMaxRevisitTime(mergedAllEvents, latBounds, lonBounds) / 3600);
-        System.out.println(coverageAnalysis.getPercentCoverage(mergedAllEvents, latBounds, lonBounds));
-        for (Satellite imager : imagers) {
-            satelliteName = imager.getName();
-            File file = new File(plannerRepoFilePath+"/"+satelliteName);
-            file.mkdir();
-            ArrayList<Observation> observations = observationsBySatellite(imager, covPointRewards, getGroundTrack(imager.getOrbit()));
-            Map<Satellite, Set<GndStation>> satelliteSetMap = new HashMap<>();
-            satelliteSetMap.put(imager,nenStations);
-            HashMap<GndStation,TimeIntervalArray> downlinks = downlinksBySatellite(satelliteSetMap);
-            TimeIntervalMerger merger = new TimeIntervalMerger(downlinks.values());
-            TimeIntervalArray mergedDownlinks = merger.orCombine();
-            Map<String, TimeIntervalArray> crosslinkTimes = crosslinks.get(imager.getName());
-            saveObject(observations,"/"+satelliteName+"/observations.dat");
-            saveObject(mergedDownlinks,"/"+satelliteName+"/downlinks.dat");
-            saveObject(crosslinkTimes,"/"+satelliteName+"/crosslinks.dat");
-        }
+        System.out.println("FOV avg revisits, planned points: "+ Arrays.toString(fovAvgRevisitsPlanned));
+        System.out.println("FOV avg revisits, all points: "+ Arrays.toString(fovAvgRevisitsAll));
+        double fovMaxRevisitPlanned = getMaxRevisitTime(fovEventsPlanned,latBounds,lonBounds)/3600;
+        double fovPercentCoveragePlanned = getPercentCoverage(fovEventsPlanned,latBounds,lonBounds);
+        System.out.println("FOV avg revisit time, planned points: "+fovAvgRevisitPlanned);
+        System.out.println("FOV med revisit time, planned points: "+fovMedRevisitPlanned);
+        System.out.println("FOV max revisit time, planned points: "+fovMaxRevisitPlanned);
+        System.out.println("FOV percent coverage, planned points: "+fovPercentCoveragePlanned);
+        double fovAvgRevisitAll = getAverageRevisitTime(fovEventsAll,latBounds,lonBounds)/3600;
+        double fovMedRevisitAll = getMedianRevisitTime(fovEventsAll,latBounds,lonBounds)/3600;
+        double fovMaxRevisitAll = getMaxRevisitTime(fovEventsAll,latBounds,lonBounds)/3600;
+        double fovPercentCoverageAll = getPercentCoverage(fovEventsAll,latBounds,lonBounds);
+        System.out.println("FOV avg revisit time, all points: "+fovAvgRevisitAll);
+        System.out.println("FOV med revisit time, all points: "+fovMedRevisitAll);
+        System.out.println("FOV max revisit time, all points: "+fovMaxRevisitAll);
+        System.out.println("FOV percent coverage, all points: "+fovPercentCoverageAll);
+        double forAvgRevisit = getAverageRevisitTime(forEvents,latBounds,lonBounds)/3600;
+        double forMedRevisit = getMedianRevisitTime(forEvents,latBounds,lonBounds)/3600;
+        double forMaxRevisit = getMaxRevisitTime(forEvents,latBounds,lonBounds)/3600;
+        double forPercentCoverage = getPercentCoverage(forEvents,latBounds,lonBounds);
+        System.out.println("FOR avg revisit time, all points: "+forAvgRevisit);
+        System.out.println("FOR med revisit time, all points: "+forMedRevisit);
+        System.out.println("FOR max revisit time, all points: "+forMaxRevisit);
+        System.out.println("FOR percent coverage, all points: "+forPercentCoverage);
         OrekitConfig.end();
     }
+    public double getAverageRevisitTime(Map<TopocentricFrame, TimeIntervalArray> accesses, double[] latBounds, double[] lonBounds){
+        // Method to compute average revisit time from accesses
 
-    public void saveObject(Object obj, String filepath) {
-        try {
-            File file = new File(plannerRepoFilePath+filepath);
-            FileOutputStream fos=new FileOutputStream(file);
-            ObjectOutputStream oos=new ObjectOutputStream(fos);
+        GroundEventAnalyzer eventAnalyzer = new GroundEventAnalyzer(accesses);
 
-            oos.writeObject(obj);
-            oos.flush();
-            oos.close();
-            fos.close();
-        } catch (Exception e) {
-            System.out.println("Exception in saveObject: "+e);
+        DescriptiveStatistics stat;
+
+        if(latBounds.length == 0 && lonBounds.length == 0){
+            stat = eventAnalyzer.getStatistics(AnalysisMetric.DURATION, false, this.propertiesPropagator);
+
+        } else {
+            stat = eventAnalyzer.getStatistics(AnalysisMetric.DURATION, false, latBounds, lonBounds, this.propertiesPropagator);
         }
+        return stat.getMean();
     }
 
-    public ArrayList<Observation> observationsBySatellite(Satellite satellite, Map<GeodeticPoint, Double> covPoints, Map<Double, GeodeticPoint> groundTrack) {
-        long start = System.nanoTime();
-        TimeScale utc = TimeScalesFactory.getUTC();
-        AbsoluteDate endDate = startDate.shiftedBy(durationDays*86400);
-        Frame earthFrame = FramesFactory.getITRF(IERSConventions.IERS_2003, true);
-        Frame inertialFrame = FramesFactory.getEME2000();
-        BodyShape earthShape = new OneAxisEllipsoid(Constants.WGS84_EARTH_EQUATORIAL_RADIUS,
-                Constants.WGS84_EARTH_FLATTENING, earthFrame);
-        PropagatorFactory pf = new PropagatorFactory(PropagatorType.J2);
+    public double getMedianRevisitTime(Map<TopocentricFrame, TimeIntervalArray> accesses, double[] latBounds, double[] lonBounds){
+        // Method to compute average revisit time from accesses
 
-        //create a coverage definition
-        CoverageDefinition covDef = new CoverageDefinition("covdef1", covPoints.keySet(), earthShape);
-        //CoverageDefinition covDef = new CoverageDefinition("Whole Earth", granularity, earthShape, UNIFORM);
-        HashSet<CoverageDefinition> covDefs = new HashSet<>();
-        ArrayList<Satellite> satelliteList = new ArrayList<>();
-        satelliteList.add(satellite);
-        Constellation constellation = new Constellation("Constellation", satelliteList);
-        covDef.assignConstellation(constellation);
-        covDefs.add(covDef);
+        GroundEventAnalyzer eventAnalyzer = new GroundEventAnalyzer(accesses);
 
-        ArrayList<EventAnalysis> eventAnalyses = new ArrayList<>();
-        FieldOfViewEventAnalysis fovea = new FieldOfViewEventAnalysis(startDate, endDate, inertialFrame,covDefs,pf,true, true);
-        eventAnalyses.add(fovea);
+        DescriptiveStatistics stat;
 
-        Scenario scene = new Scenario.Builder(startDate, endDate, utc).eventAnalysis(eventAnalyses).covDefs(covDefs).name("CoverageBySatellite").propagatorFactory(pf).build();
+        if(latBounds.length == 0 && lonBounds.length == 0){
+            stat = eventAnalyzer.getStatistics(AnalysisMetric.DURATION, false, this.propertiesPropagator);
 
-        try {
-            scene.call();
-        } catch (Exception e) {
-            e.printStackTrace();
+        } else {
+            stat = eventAnalyzer.getStatistics(AnalysisMetric.DURATION, false, latBounds, lonBounds, this.propertiesPropagator);
         }
-
-        GroundEventAnalyzer gea = new GroundEventAnalyzer(fovea.getEvents(covDef));
-
-        Map<TopocentricFrame, TimeIntervalArray> gpEvents = gea.getEvents();
-        ArrayList<Observation> observations = new ArrayList<>();
-        for (TopocentricFrame tf : gpEvents.keySet()) {
-            GeodeticPoint gp = tf.getPoint();
-            TimeIntervalArray tia = gpEvents.get(tf);
-            for (int i = 0; i < tia.numIntervals(); i++) {
-                double riseTime = tia.getRiseAndSetTimesList()[2*i];
-                double setTime = tia.getRiseAndSetTimesList()[2*i+1];
-                double incidenceAngle = getIncidenceAngle(gp,riseTime,setTime,satellite,groundTrack);
-                double reward = covPoints.get(gp);
-                Observation obs = new Observation(gp,riseTime,setTime,reward,incidenceAngle);
-                observations.add(obs);
-            }
-        }
-        long end = System.nanoTime();
-        System.out.printf("observationsBySatellite took %.4f sec\n", (end - start) / Math.pow(10, 9));
-        observations = sortObservations(observations);
-        return observations;
+        return stat.getPercentile(50);
     }
 
-    public ArrayList<Observation> sortObservations(ArrayList<Observation> observations) {
-        observations.sort(new sortByRiseTime());
-        return observations;
+    public double[] getRevisits(Map<TopocentricFrame, TimeIntervalArray> accesses, double[] latBounds, double[] lonBounds){
+        // Method to compute average revisit time from accesses
+
+        GroundEventAnalyzer eventAnalyzer = new GroundEventAnalyzer(accesses);
+
+        DescriptiveStatistics stat;
+
+        if(latBounds.length == 0 && lonBounds.length == 0){
+            stat = eventAnalyzer.getStatistics(AnalysisMetric.DURATION, false, this.propertiesPropagator);
+
+        } else {
+            stat = eventAnalyzer.getStatistics(AnalysisMetric.DURATION, false, latBounds, lonBounds, this.propertiesPropagator);
+        }
+        return stat.getSortedValues();
     }
 
-    class sortByRiseTime implements Comparator<Observation>
-    {
-        // Used for sorting in ascending order of
-        // roll number
-        public int compare(Observation a, Observation b)
-        {
-            return (int) (a.getObservationStart() - b.getObservationStart());
+    public double getMaxRevisitTime(Map<TopocentricFrame, TimeIntervalArray> accesses, double[] latBounds, double[] lonBounds){
+        // Method to compute average revisit time from accesses
+
+        GroundEventAnalyzer eventAnalyzer = new GroundEventAnalyzer(accesses);
+
+        DescriptiveStatistics stat;
+
+        if(latBounds.length == 0 && lonBounds.length == 0){
+            stat = eventAnalyzer.getStatistics(AnalysisMetric.DURATION, false, this.propertiesPropagator);
+
+        } else {
+            stat = eventAnalyzer.getStatistics(AnalysisMetric.DURATION, false, latBounds, lonBounds, this.propertiesPropagator);
         }
+        return stat.getPercentile(95);
     }
 
-    public HashMap<GndStation, TimeIntervalArray> downlinksBySatellite(Map<Satellite,Set<GndStation>> satelliteMap) {
-        long start = System.nanoTime();
-        TimeScale utc = TimeScalesFactory.getUTC();
-        AbsoluteDate endDate = startDate.shiftedBy(durationDays*86400);
-        Frame inertialFrame = FramesFactory.getEME2000();
-        PropagatorFactory pf = new PropagatorFactory(PropagatorType.J2);
+    public double getPercentCoverage(Map<TopocentricFrame, TimeIntervalArray> accesses, double[] latBounds, double[] lonBounds){
+        // Method to compute average revisit time from accesses
 
-        ArrayList<EventAnalysis> eventAnalyses = new ArrayList<>();
-        GndStationEventAnalysis gsea = new GndStationEventAnalysis(startDate, endDate, inertialFrame,satelliteMap,pf);
-        eventAnalyses.add(gsea);
+        GroundEventAnalyzer eventAnalyzer = new GroundEventAnalyzer(accesses);
 
-        Scenario scene = new Scenario.Builder(startDate, endDate, utc).eventAnalysis(eventAnalyses).name("GSBySatellite").propagatorFactory(pf).build();
+        DescriptiveStatistics stat;
 
-        try {
-            scene.call();
-        } catch (Exception e) {
-            e.printStackTrace();
+        if(latBounds.length == 0 && lonBounds.length == 0){
+            stat = eventAnalyzer.getStatistics(AnalysisMetric.PERCENT_COVERAGE, true, this.propertiesPropagator);
+
+        } else {
+            stat = eventAnalyzer.getStatistics(AnalysisMetric.PERCENT_COVERAGE, true, latBounds, lonBounds, this.propertiesPropagator);
         }
-        Set<Satellite> satSet = satelliteMap.keySet();
-        Satellite sat = satSet.iterator().next();
-        HashMap<GndStation, TimeIntervalArray> gsMap = gsea.getSatelliteAccesses(sat);
-        long end = System.nanoTime();
-        System.out.printf("downlinksBySatellite took %.4f sec\n", (end - start) / Math.pow(10, 9));
-        return gsMap;
-    }
 
-    public Map<String, Map<String, TimeIntervalArray>> getCrosslinks(ArrayList<Constellation> constellation) {
-        long start = System.nanoTime();
-        TimeScale utc = TimeScalesFactory.getUTC();
-        AbsoluteDate endDate = startDate.shiftedBy(durationDays*86400);
-        Frame inertialFrame = FramesFactory.getEME2000();
-        PropagatorFactory pf = new PropagatorFactory(PropagatorType.J2);
-
-        ArrayList<EventAnalysis> eventAnalyses = new ArrayList<>();
-        CrossLinkEventAnalysis clea = new CrossLinkEventAnalysis(startDate, endDate, inertialFrame,constellation,pf, true, false);
-        eventAnalyses.add(clea);
-
-        Scenario scene = new Scenario.Builder(startDate, endDate, utc).eventAnalysis(eventAnalyses).name("GSBySatellite").propagatorFactory(pf).build();
-
-        try {
-            scene.call();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        long end = System.nanoTime();
-        System.out.printf("crosslinks took %.4f sec\n", (end - start) / Math.pow(10, 9));
-        return clea.getAllAccesses();
+        return stat.getMean();
     }
 
     public Map<GeodeticPoint,Double> loadCoveragePoints() {
@@ -362,122 +336,25 @@ public class PlannerCoverageMetrics {
 
         return pointRewards;
     }
+    public void loadAccesses() {
+        File directory = new File(plannerRepoFilePath);
+        Map<String, Map<TopocentricFrame,TimeIntervalArray>> acc = new HashMap<>();
+        try{
+            String[] directories = directory.list((current, name) -> new File(current, name).isDirectory());
+            for(int i = 0; i < directory.list().length-1; i++) {
+                FileInputStream fi = new FileInputStream(plannerRepoFilePath+"/"+directories[i]+"/accesses.dat");
+                ObjectInputStream oi = new ObjectInputStream(fi);
 
-    public Map<Double, GeodeticPoint> getGroundTrack(Orbit orbit) {
-        OrekitConfig.init(1);
-        TimeScale utc = TimeScalesFactory.getUTC();
-        AbsoluteDate endDate = startDate.shiftedBy(durationDays*86400);
+                Map<TopocentricFrame,TimeIntervalArray> accesses =  (Map<TopocentricFrame,TimeIntervalArray>) oi.readObject();
+                acc.put(directories[i],accesses);
 
-        Frame earthFrame = FramesFactory.getITRF(IERSConventions.IERS_2003, true);
-
-        BodyShape earthShape = new OneAxisEllipsoid(Constants.WGS84_EARTH_EQUATORIAL_RADIUS,
-                Constants.WGS84_EARTH_FLATTENING, earthFrame);
-        ArrayList<Instrument> payload = new ArrayList<>();
-        Satellite sat1 = new Satellite(orbit.toString(), orbit,  payload);
-        Properties propertiesPropagator = new Properties();
-        PropagatorFactory pf = new PropagatorFactory(PropagatorType.J2,propertiesPropagator);
-
-
-        Collection<Analysis<?>> analyses = new ArrayList<>();
-        double analysisTimeStep = 1;
-        GroundTrackAnalysis gta = new GroundTrackAnalysis(startDate, endDate, analysisTimeStep, sat1, earthShape, pf);
-        analyses.add(gta);
-        Scenario scen = new Scenario.Builder(startDate, endDate, utc).
-                analysis(analyses).name(orbit.toString()).propagatorFactory(pf).build();
-        try {
-            scen.call();
-        } catch (Exception ex) {
-            throw new IllegalStateException("Ground track scenario failed to complete.");
-        }
-        Map<Double, GeodeticPoint> sspMap = new HashMap<>();
-        for (Record<String> ind : gta.getHistory()) {
-            String rawString = ind.getValue();
-            AbsoluteDate date = ind.getDate();
-            String[] splitString = rawString.split(",");
-            double latitude = Double.parseDouble(splitString[0]);
-            double longitude = Double.parseDouble(splitString[1]);
-            GeodeticPoint ssp = new GeodeticPoint(Math.toRadians(latitude),Math.toRadians(longitude),0);
-            double elapsedTime = date.durationFrom(startDate);
-            sspMap.put(elapsedTime,ssp);
-        }
-        return sspMap;
-    }
-
-    public double getIncidenceAngle(GeodeticPoint point, double riseTime, double setTime, Satellite satellite, Map<Double, GeodeticPoint> groundTrack) {
-        double time = (riseTime + setTime) / 2;
-
-        double closestDist = 100000000000000000.0;
-        double closestTime = 100 * 24 * 3600; // 100 days
-        GeodeticPoint closestPoint;
-        for (Double sspTime : groundTrack.keySet()) {
-            if (Math.abs(sspTime - time) < closestTime) {
-                closestTime = Math.abs(sspTime - time);
-                closestPoint = groundTrack.get(sspTime);
-                double dist = Math.sqrt(Math.pow(LLAtoECI(closestPoint)[0] - LLAtoECI(point)[0], 2) + Math.pow(LLAtoECI(closestPoint)[1] - LLAtoECI(point)[1], 2) + Math.pow(LLAtoECI(closestPoint)[2] - LLAtoECI(point)[2], 2));
-                if (dist < closestDist) {
-                    closestDist = dist;
-                }
+                oi.close();
+                fi.close();
             }
+        } catch (Exception e) {
+            System.out.println("Exception in loadObservations: "+e.getMessage());
         }
-        return Math.atan2(closestDist,(satellite.getOrbit().getA()-6370000)/1000);
-    }
-
-    public double[] LLAtoECI(GeodeticPoint point) {
-        double re = 6370;
-        double x = re * Math.cos(point.getLatitude()) * Math.cos(point.getLongitude());
-        double y = re * Math.cos(point.getLatitude()) * Math.sin(point.getLongitude());
-        double z = re * Math.sin(point.getLatitude());
-        double[] result = {x,y,z};
-        return result;
-    }
-
-    public double getRevisitTime(Map<TopocentricFrame, TimeIntervalArray> accesses, double[] latBounds, double[] lonBounds){
-        // Method to compute average revisit time from accesses
-
-        GroundEventAnalyzer eventAnalyzer = new GroundEventAnalyzer(accesses);
-
-        DescriptiveStatistics stat;
-
-        if(latBounds.length == 0 && lonBounds.length == 0){
-            stat = eventAnalyzer.getStatistics(AnalysisMetric.DURATION, false, this.propertiesPropagator);
-
-        } else {
-            stat = eventAnalyzer.getStatistics(AnalysisMetric.DURATION, false, latBounds, lonBounds, this.propertiesPropagator);
-        }
-        return stat.getMean();
-    }
-
-    public double getMaxRevisitTime(Map<TopocentricFrame, TimeIntervalArray> accesses, double[] latBounds, double[] lonBounds){
-        // Method to compute average revisit time from accesses
-
-        GroundEventAnalyzer eventAnalyzer = new GroundEventAnalyzer(accesses);
-
-        DescriptiveStatistics stat;
-
-        if(latBounds.length == 0 && lonBounds.length == 0){
-            stat = eventAnalyzer.getStatistics(AnalysisMetric.DURATION, false, this.propertiesPropagator);
-
-        } else {
-            stat = eventAnalyzer.getStatistics(AnalysisMetric.DURATION, false, latBounds, lonBounds, this.propertiesPropagator);
-        }
-        return stat.getPercentile(95);
-    }
-
-    public double getPercentCoverage(Map<TopocentricFrame, TimeIntervalArray> accesses, double[] latBounds, double[] lonBounds){
-        // Method to compute average revisit time from accesses
-
-        GroundEventAnalyzer eventAnalyzer = new GroundEventAnalyzer(accesses);
-
-        DescriptiveStatistics stat;
-
-        if(latBounds.length == 0 && lonBounds.length == 0){
-            stat = eventAnalyzer.getStatistics(AnalysisMetric.PERCENT_COVERAGE, true, this.propertiesPropagator);
-
-        } else {
-            stat = eventAnalyzer.getStatistics(AnalysisMetric.PERCENT_COVERAGE, true, latBounds, lonBounds, this.propertiesPropagator);
-        }
-
-        return stat.getMean();
+        accessEvents = acc;
     }
 
 }

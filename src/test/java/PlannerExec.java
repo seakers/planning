@@ -14,7 +14,7 @@ public class PlannerExec {
         settings.put("downlinkOnPower","0.0");
         settings.put("crosslinkOnPower","0.0");
         settings.put("chlBonusReward","100.0");
-        settings.put("maxTorque","4e-5");
+        settings.put("maxTorque","4e-3");
         settings.put("planner","ruleBased");
         settings.put("resources","false");
         double smartSum = 0;

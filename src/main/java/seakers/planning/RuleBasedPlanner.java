@@ -37,17 +37,25 @@ public class RuleBasedPlanner {
 
     public ArrayList<StateAction> greedyPlan(SatelliteState initialState) {
         ArrayList<StateAction> resultList = new ArrayList<>();
-        SatelliteState s = initialState;
-        boolean moreActions = true;
-        while(moreActions) {
-            SatelliteAction bestAction = selectAction(s);
-            if(bestAction==null) {
-                break;
+        double estimatedReward = 1000;
+        for(int i = 0; i < 1; i++) {
+            System.out.println("Estimated reward: "+estimatedReward);
+            resultList.clear();
+            double totalReward = 0;
+            boolean moreActions = true;
+            SatelliteState s = initialState;
+            while(moreActions) {
+                SatelliteAction bestAction = selectAction(s,estimatedReward);
+                if(bestAction==null) {
+                    break;
+                }
+                StateAction stateAction = new StateAction(s,bestAction);
+                s = transitionFunction(s,bestAction);
+                resultList.add(stateAction);
+                moreActions = !getActionSpace(s).isEmpty();
+                totalReward += bestAction.getReward();
             }
-            StateAction stateAction = new StateAction(s,bestAction);
-            s = transitionFunction(s,bestAction);
-            resultList.add(stateAction);
-            moreActions = !getActionSpace(s).isEmpty();
+            estimatedReward = totalReward;
         }
         return resultList;
     }
@@ -83,10 +91,9 @@ public class RuleBasedPlanner {
         return new SatelliteState(t,tPrevious,history,batteryCharge,dataStored,currentAngle,storedImageReward);
     }
 
-    public SatelliteAction selectAction(SatelliteState s) {
+    public SatelliteAction selectAction(SatelliteState s, double estimatedReward) {
         ArrayList<SatelliteAction> possibleActions = getActionSpace(s);
         SatelliteAction bestAction = null;
-        double estimatedReward = 100000;
         double maximum = 0.0;
         //System.out.println(s.getBatteryCharge());
         if(s.getBatteryCharge() < 15 && resources) {
@@ -105,18 +112,19 @@ public class RuleBasedPlanner {
                         bestAction = a;
                         break outerloop;
                     }
-                break;
+                    break;
                 case("imaging"):
-                    double rho = (86400.0-a.gettEnd())/(86400.0);
+                    double rho = (86400.0*30.0-a.gettEnd())/(86400.0*30.0);
                     double e = Math.pow(rho,1) * estimatedReward;
                     double adjustedReward = a.getReward() + e;
                     if(adjustedReward > maximum) {
                         bestAction = a;
                         maximum = adjustedReward;
                     }
-                }
-                break;
+            }
+            break;
         }
+
         return bestAction;
     }
 

@@ -33,15 +33,15 @@ public class EqualSimulator {
     private Map<String, Double> results;
     public Map<String,Map<GeodeticPoint,Double[]>> gpAccesses;
 
-    public EqualSimulator(Map<String,String> settings) {
+    public EqualSimulator(Map<String,String> settings, String filepath) {
         long start = System.nanoTime();
-        filepath = "./src/test/resources/plannerData/oneday";
+        this.filepath = filepath;
         loadCrosslinks();
         loadDownlinks();
         loadObservations();
         loadRewardGrid();
         debug = true;
-        endTime = 86400.0;
+        endTime = 86400.0*30;
         results = new HashMap<>();
         localRewardGrids = new HashMap<>();
         actionsTaken = new HashMap<>();
@@ -70,7 +70,7 @@ public class EqualSimulator {
         double currentTime = 0.0;
 
         for (String sat : satList) {
-            NaivePlanExecutor planExec = new NaivePlanExecutor(currentStates.get(sat),currentTime,86400.0,currentPlans.get(sat), sat, settings);
+            NaivePlanExecutor planExec = new NaivePlanExecutor(currentStates.get(sat),currentTime,endTime,currentPlans.get(sat), sat, settings);
             updateNaiveGlobalRewardGrid(planExec.getRewardGridUpdates());
             naiveActionsTaken.put(sat,planExec.getActionsTaken());
         }
