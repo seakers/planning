@@ -39,7 +39,7 @@ public class RuleBasedPlanner {
         ArrayList<StateAction> resultList = new ArrayList<>();
         double estimatedReward = 1000;
         for(int i = 0; i < 1; i++) {
-            System.out.println("Estimated reward: "+estimatedReward);
+            //System.out.println("Estimated reward: "+estimatedReward);
             resultList.clear();
             double totalReward = 0;
             boolean moreActions = true;

@@ -161,8 +161,8 @@ public class PlannerCoverageMetrics {
         for (int i = 0; i < fovAvgRevisitsAll.length; i++) {
             fovAvgRevisitsAll[i] = fovAvgRevisitsAll[i]/3600;
         }
-        System.out.println("FOV avg revisits, planned points: "+ Arrays.toString(fovAvgRevisitsPlanned));
-        System.out.println("FOV avg revisits, all points: "+ Arrays.toString(fovAvgRevisitsAll));
+        //System.out.println("FOV avg revisits, planned points: "+ Arrays.toString(fovAvgRevisitsPlanned));
+        //System.out.println("FOV avg revisits, all points: "+ Arrays.toString(fovAvgRevisitsAll));
         double fovMaxRevisitPlanned = getMaxRevisitTime(fovEventsPlanned,latBounds,lonBounds)/3600;
         double fovPercentCoveragePlanned = getPercentCoverage(fovEventsPlanned,latBounds,lonBounds);
         System.out.println("FOV avg revisit time, planned points: "+fovAvgRevisitPlanned);

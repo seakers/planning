@@ -105,9 +105,9 @@ public class EqualSimulator {
             }
             gpAccesses.put(sat,gpAccessesPerSat);
         }
-        System.out.println(flag+" charge count: "+chargeCount);
-        System.out.println(flag+" imaging count: "+imagingCount);
-        System.out.println(flag+" downlink count: "+downlinkCount);
+        //System.out.println(flag+" charge count: "+chargeCount);
+        //System.out.println(flag+" imaging count: "+imagingCount);
+        //System.out.println(flag+" downlink count: "+downlinkCount);
     }
     public void updateNaiveGlobalRewardGrid(Map<GeodeticPoint,GeophysicalEvent> updates) {
         for(GeodeticPoint gp : updates.keySet()) {
