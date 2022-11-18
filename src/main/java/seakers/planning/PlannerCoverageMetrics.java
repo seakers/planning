@@ -35,6 +35,7 @@ import seakers.orekit.scenario.Scenario;
 import seakers.orekit.util.OrekitConfig;
 
 import java.io.*;
+import java.text.DecimalFormat;
 import java.util.*;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
@@ -165,26 +166,26 @@ public class PlannerCoverageMetrics {
         //System.out.println("FOV avg revisits, all points: "+ Arrays.toString(fovAvgRevisitsAll));
         double fovMaxRevisitPlanned = getMaxRevisitTime(fovEventsPlanned,latBounds,lonBounds)/3600;
         double fovPercentCoveragePlanned = getPercentCoverage(fovEventsPlanned,latBounds,lonBounds);
-        System.out.println("FOV avg revisit time, planned points: "+fovAvgRevisitPlanned);
-        System.out.println("FOV med revisit time, planned points: "+fovMedRevisitPlanned);
-        System.out.println("FOV max revisit time, planned points: "+fovMaxRevisitPlanned);
-        System.out.println("FOV percent coverage, planned points: "+fovPercentCoveragePlanned);
+        System.out.printf("FOV avg revisit time, planned points: %.2f\n",fovAvgRevisitPlanned);
+        System.out.printf("FOV med revisit time, planned points: %.2f\n",fovMedRevisitPlanned);
+        System.out.printf("FOV max revisit time, planned points: %.2f\n",fovMaxRevisitPlanned);
+        System.out.printf("FOV percent coverage, planned points: %.2f\n",fovPercentCoveragePlanned);
         double fovAvgRevisitAll = getAverageRevisitTime(fovEventsAll,latBounds,lonBounds)/3600;
         double fovMedRevisitAll = getMedianRevisitTime(fovEventsAll,latBounds,lonBounds)/3600;
         double fovMaxRevisitAll = getMaxRevisitTime(fovEventsAll,latBounds,lonBounds)/3600;
         double fovPercentCoverageAll = getPercentCoverage(fovEventsAll,latBounds,lonBounds);
-        System.out.println("FOV avg revisit time, all points: "+fovAvgRevisitAll);
-        System.out.println("FOV med revisit time, all points: "+fovMedRevisitAll);
-        System.out.println("FOV max revisit time, all points: "+fovMaxRevisitAll);
-        System.out.println("FOV percent coverage, all points: "+fovPercentCoverageAll);
+        System.out.printf("FOV avg revisit time, all points: %.2f\n",fovAvgRevisitAll);
+        System.out.printf("FOV med revisit time, all points: %.2f\n",fovMedRevisitAll);
+        System.out.printf("FOV max revisit time, all points: %.2f\n",fovMaxRevisitAll);
+        System.out.printf("FOV percent coverage, all points: %.2f\n",fovPercentCoverageAll);
         double forAvgRevisit = getAverageRevisitTime(forEvents,latBounds,lonBounds)/3600;
         double forMedRevisit = getMedianRevisitTime(forEvents,latBounds,lonBounds)/3600;
         double forMaxRevisit = getMaxRevisitTime(forEvents,latBounds,lonBounds)/3600;
         double forPercentCoverage = getPercentCoverage(forEvents,latBounds,lonBounds);
-        System.out.println("FOR avg revisit time, all points: "+forAvgRevisit);
-        System.out.println("FOR med revisit time, all points: "+forMedRevisit);
-        System.out.println("FOR max revisit time, all points: "+forMaxRevisit);
-        System.out.println("FOR percent coverage, all points: "+forPercentCoverage);
+        System.out.printf("FOR avg revisit time, all points: %.2f\n",forAvgRevisit);
+        System.out.printf("FOR med revisit time, all points: %.2f\n",forMedRevisit);
+        System.out.printf("FOR max revisit time, all points: %.2f\n",forMaxRevisit);
+        System.out.printf("FOR percent coverage, all points: %.2f\n",forPercentCoverage);
         OrekitConfig.end();
     }
     public double getAverageRevisitTime(Map<TopocentricFrame, TimeIntervalArray> accesses, double[] latBounds, double[] lonBounds){

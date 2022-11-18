@@ -22,7 +22,9 @@ public class PlannerExecCoverage {
             settings.put("maxTorque",Double.toString(maxTorque));
             settings.put("planner","ruleBased");
             settings.put("resources","false");
-            String filepath = "./src/test/resources/plannerData/thirtydays_sixteensats_45deg";
+            String filepath = "./src/test/resources/plannerData/thirtydays_sixteensats_30deg";
+            System.out.println("====================================================");
+            System.out.println("Max torque: "+maxTorque);
             EqualSimulator simulator = new EqualSimulator(settings,filepath);
             Map<String,Map<GeodeticPoint,Double[]>> plannerAccesses = simulator.getPlannerAccesses();
             PlannerCoverageMetrics pcm = new PlannerCoverageMetrics(filepath,plannerAccesses);
