@@ -97,7 +97,7 @@ public class XPlanner {
         BodyShape earthShape = new OneAxisEllipsoid(Constants.WGS84_EARTH_EQUATORIAL_RADIUS,
                 Constants.WGS84_EARTH_FLATTENING, earthFrame);
         TimeScale utc = TimeScalesFactory.getUTC();
-        AbsoluteDate startDate = new AbsoluteDate(2020, 1, 1, 10, 30, 00.000, utc);
+        AbsoluteDate startDate = new AbsoluteDate(2020, 1, 1, 0, 0, 00.000, utc);
         double mu = Constants.WGS84_EARTH_MU;
 
         // Initializing
