@@ -53,10 +53,10 @@ public class RuleBasedCoveragePlanner {
             double lastTime = 0;
             while(moreActions) {
                 SatelliteAction bestAction = selectAction(s,estimatedReward);
-                double newTime = bestAction.gettStart();
                 if(bestAction==null) {
                     break;
                 }
+                double newTime = bestAction.gettStart();
                 if(bestAction.getLocation() != null) {
                     updateRewardGrid(bestAction.getLocation(),newTime-lastTime,obsCounts);
                     lastTime = newTime;
