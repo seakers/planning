@@ -243,6 +243,10 @@ public class EqualSimulator {
                 RuleBasedPlanner ruleBasedPlanner = new RuleBasedPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                 currentPlans.put(sat, ruleBasedPlanner.getResults());
                 break;
+            case "ruleBased_coverage":
+                RuleBasedCoveragePlanner ruleBasedCoveragePlanner = new RuleBasedCoveragePlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
+                currentPlans.put(sat, ruleBasedCoveragePlanner.getResults());
+                break;
             case "mcts":
                 MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                 currentPlans.put(sat, mctsPlanner.getResults());

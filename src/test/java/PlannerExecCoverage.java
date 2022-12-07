@@ -20,7 +20,7 @@ public class PlannerExecCoverage {
             settings.put("crosslinkOnPower","0.0");
             settings.put("chlBonusReward","100.0");
             settings.put("maxTorque",Double.toString(maxTorque));
-            settings.put("planner","ruleBased");
+            settings.put("planner","ruleBased_coverage");
             settings.put("resources","false");
             String filepath = "./src/test/resources/plannerData/thirtydays_sixteensats_30deg";
             System.out.println("====================================================");
