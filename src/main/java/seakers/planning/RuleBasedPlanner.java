@@ -121,8 +121,9 @@ public class RuleBasedPlanner {
                         bestAction = a;
                         maximum = adjustedReward;
                     }
+                    break;
             }
-            break;
+
         }
 
         return bestAction;

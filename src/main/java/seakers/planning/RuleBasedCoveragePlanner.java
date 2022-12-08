@@ -6,6 +6,7 @@ import seakers.orekit.coverage.access.TimeIntervalArray;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 
 public class RuleBasedCoveragePlanner {
     private ArrayList<SatelliteAction> results;
@@ -39,7 +40,7 @@ public class RuleBasedCoveragePlanner {
 
     public ArrayList<StateAction> greedyPlan(SatelliteState initialState) {
         ArrayList<StateAction> resultList = new ArrayList<>();
-        double estimatedReward = 10000000;
+        double estimatedReward = 10;
         for(int i = 0; i < 1; i++) {
             //System.out.println("Estimated reward: "+estimatedReward);
             resultList.clear();
@@ -81,16 +82,15 @@ public class RuleBasedCoveragePlanner {
         for(GeodeticPoint gp : rewardGrid.keySet()) {
             if(gp.getLatitude() == location.getLatitude()) {
                 rewardGrid.put(gp, 0.0);
+            } else {
+                int count = 0;
+                for(GeodeticPoint obs : obsCounts.keySet()) {
+                    if(obs.getLatitude() == gp.getLatitude()) {
+                        count = obsCounts.get(obs);
+                    }
+                }
+                rewardGrid.put(gp,(rewardGrid.get(gp)+elapsedTime)/Math.pow(count+5,3));
             }
-//            } else {
-//                int count = 0;
-//                for(GeodeticPoint obs : obsCounts.keySet()) {
-//                    if(obs.getLatitude() == gp.getLatitude()) {
-//                        count = obsCounts.get(obs);
-//                    }
-//                }
-//                rewardGrid.put(gp,(rewardGrid.get(gp)+elapsedTime)/Math.pow(count+5,3));
-//            }
         }
     }
 
@@ -151,12 +151,20 @@ public class RuleBasedCoveragePlanner {
                     double rho = (86400.0*30.0-a.gettEnd())/(86400.0*30.0);
                     double e = Math.pow(rho,1) * estimatedReward;
                     double adjustedReward = a.getReward() + e;
+//                    Random rand = new Random();
+//                    int rand_int = rand.nextInt(1000);
+//                    int index = (int)(Math.random() * possibleActions.size());
+//                    if(rand_int > 900) {
+//                        bestAction = possibleActions.get(index);
+//                        break outerloop;
+//                    }
                     if(adjustedReward > maximum) {
                         bestAction = a;
                         maximum = adjustedReward;
                     }
+                    break;
             }
-            break;
+
         }
 
         return bestAction;

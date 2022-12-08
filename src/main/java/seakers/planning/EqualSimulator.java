@@ -62,6 +62,7 @@ public class EqualSimulator {
             currentStates.put(sat,satelliteState);
             long planStart = System.nanoTime();
             makePlan(sat,settings);
+            //System.out.println("Plan for "+sat+": "+currentPlans.get(sat));
             long planEnd = System.nanoTime();
             System.out.printf("Took %.4f sec\n", (planEnd - planStart) / Math.pow(10, 9));
             rewardDownlinked.put(sat,0.0);
