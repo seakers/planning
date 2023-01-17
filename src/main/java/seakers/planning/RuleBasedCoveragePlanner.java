@@ -3,10 +3,8 @@ package seakers.planning;
 import org.orekit.bodies.GeodeticPoint;
 import seakers.orekit.coverage.access.TimeIntervalArray;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class RuleBasedCoveragePlanner {
     private ArrayList<SatelliteAction> results;
@@ -40,8 +38,8 @@ public class RuleBasedCoveragePlanner {
 
     public ArrayList<StateAction> greedyPlan(SatelliteState initialState) {
         ArrayList<StateAction> resultList = new ArrayList<>();
-        double estimatedReward = 10;
-        for(int i = 0; i < 1; i++) {
+        double estimatedReward = 3e7;
+        for(int i = 0; i < 2; i++) {
             //System.out.println("Estimated reward: "+estimatedReward);
             resultList.clear();
             Map<GeodeticPoint,Integer> obsCounts = new HashMap<>();
@@ -69,8 +67,21 @@ public class RuleBasedCoveragePlanner {
                 totalReward += bestAction.getReward();
             }
             estimatedReward = totalReward;
+            System.out.println(estimatedReward);
         }
         return resultList;
+    }
+
+    ArrayList<GeodeticPoint> getPointsInFOV(GeodeticPoint location, ArrayList<GeodeticPoint> groundPoints) {
+        ArrayList<GeodeticPoint> pointsInFOV = new ArrayList<>();
+        for (GeodeticPoint gp : groundPoints) {
+            double distance = Math.sqrt(Math.pow(location.getLatitude()-gp.getLatitude(),2)+Math.pow(location.getLongitude()-gp.getLongitude(),2)); // in radians latitude
+            double radius = 577; // kilometers for 500 km orbit height, 30 deg half angle, NOT spherical trig TODO
+            if(distance * 111.1 * 180 / Math.PI < radius) {
+                pointsInFOV.add(gp);
+            }
+        }
+        return pointsInFOV;
     }
 
     void updateRewardGrid(GeodeticPoint location, double elapsedTime, Map<GeodeticPoint,Integer> obsCounts) {
@@ -79,17 +90,30 @@ public class RuleBasedCoveragePlanner {
                 obsCounts.put(gp,obsCounts.get(gp)+1);
             }
         }
+        ArrayList<GeodeticPoint> nearbyPoints = getPointsInFOV(location, new ArrayList<>(rewardGrid.keySet()));
         for(GeodeticPoint gp : rewardGrid.keySet()) {
-            if(gp.getLatitude() == location.getLatitude()) {
+            if(nearbyPoints.contains(gp)) {
                 rewardGrid.put(gp, 0.0);
             } else {
                 int count = 0;
                 for(GeodeticPoint obs : obsCounts.keySet()) {
-                    if(obs.getLatitude() == gp.getLatitude()) {
+                    if(nearbyPoints.contains(obs)) {
                         count = obsCounts.get(obs);
                     }
                 }
-                rewardGrid.put(gp,(rewardGrid.get(gp)+elapsedTime)/Math.pow(count+5,3));
+                rewardGrid.put(gp,(rewardGrid.get(gp)+elapsedTime)/(count+1));
+            }
+            Set<Double> values = new HashSet<>(rewardGrid.values());
+            boolean isUnique = values.size() == 1;
+            boolean isZero = false;
+            if(isUnique) {
+                Double[] valueArray = (Double[]) values.toArray();
+                if (valueArray[0] == 0.0) {
+                    isZero = true;
+                }
+            }
+            if(isUnique && isZero) {
+                rewardGrid.replaceAll( (k,v)-> 1.0);
             }
         }
     }

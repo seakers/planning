@@ -1,15 +1,17 @@
 import org.orekit.bodies.GeodeticPoint;
+import seakers.orekit.coverage.access.TimeIntervalArray;
 import seakers.planning.EqualSimulator;
 import seakers.planning.PlannerCoverageMetrics;
 import seakers.planning.Simulator;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
 public class PlannerExecCoverage {
     public static void main(String[] args) {
-        double maxTorque = 4e-10;
-        for(int i = 0; i < 10; i++) {
+        double maxTorque = 4e-1;
+        for(int i = 0; i < 1; i++) {
             Map<String,String> settings = new HashMap<>();
             settings.put("crosslinkEnabled","true");
             settings.put("downlinkEnabled","true");
@@ -26,7 +28,7 @@ public class PlannerExecCoverage {
             System.out.println("====================================================");
             System.out.println("Max torque: "+maxTorque);
             EqualSimulator simulator = new EqualSimulator(settings,filepath);
-            Map<String,Map<GeodeticPoint,Double[]>> plannerAccesses = simulator.getPlannerAccesses();
+            Map<String,Map<GeodeticPoint, ArrayList<TimeIntervalArray>>> plannerAccesses = simulator.getPlannerAccesses();
             PlannerCoverageMetrics pcm = new PlannerCoverageMetrics(filepath,plannerAccesses);
             maxTorque *= 10;
         }

@@ -1,10 +1,26 @@
 package seakers.planning;
 
+import org.orekit.bodies.BodyShape;
 import org.orekit.bodies.GeodeticPoint;
+import org.orekit.bodies.OneAxisEllipsoid;
+import org.orekit.data.DataProvidersManager;
+import org.orekit.data.DirectoryCrawler;
+import org.orekit.frames.Frame;
+import org.orekit.frames.FramesFactory;
+import org.orekit.frames.TopocentricFrame;
+import org.orekit.time.AbsoluteDate;
+import org.orekit.time.TimeScale;
+import org.orekit.time.TimeScalesFactory;
+import org.orekit.utils.Constants;
+import org.orekit.utils.IERSConventions;
 import seakers.orekit.coverage.access.TimeIntervalArray;
+import seakers.orekit.util.OrekitConfig;
 
 import java.io.*;
 import java.util.*;
+import java.util.logging.ConsoleHandler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import static java.lang.Double.parseDouble;
 
@@ -27,11 +43,14 @@ public class EqualSimulator {
     public Map<String,ArrayList<GeophysicalEvent>> naiveDownlinkedGeophysicalEvents;
     public Map<String,ArrayList<GeophysicalEvent>> imagedGeophysicalEvents;
     public Map<String, SatelliteState> currentStates;
+
+    private AbsoluteDate startDate;
+    private AbsoluteDate endDate;
     public double chlReward;
     boolean debug;
     public double endTime;
     private Map<String, Double> results;
-    public Map<String,Map<GeodeticPoint,Double[]>> gpAccesses;
+    public Map<String,Map<GeodeticPoint,ArrayList<TimeIntervalArray>>> gpAccesses;
 
     public EqualSimulator(Map<String,String> settings, String filepath) {
         long start = System.nanoTime();
@@ -40,8 +59,15 @@ public class EqualSimulator {
         loadDownlinks();
         loadObservations();
         loadRewardGrid();
+        OrekitConfig.init(1);
+        File orekitData = new File("./src/main/resources/orekitResources");
+        DataProvidersManager manager = DataProvidersManager.getInstance();
+        manager.addProvider(new DirectoryCrawler(orekitData));
+        TimeScale utc = TimeScalesFactory.getUTC();
+        startDate = new AbsoluteDate(2020, 1, 1, 10, 30, 00.000, utc);
+        endDate = startDate.shiftedBy(30.0*86400);
         debug = true;
-        endTime = 86400.0*30;
+        endTime = 86400.0*30.0;
         results = new HashMap<>();
         localRewardGrids = new HashMap<>();
         actionsTaken = new HashMap<>();
@@ -50,10 +76,18 @@ public class EqualSimulator {
         currentStates = new HashMap<>();
         rewardDownlinked = new HashMap<>();
         naiveRewardDownlinked = new HashMap<>();
+        gpAccesses = new HashMap<>();
         naiveGlobalRewardGridUpdates = new ArrayList<>();
         ArrayList<String> satList = new ArrayList<>(downlinkEvents.keySet());
         crosslinkInfo = crosslinkInfoInitialize(satList);
-
+        for (String sat : downlinkEvents.keySet()) {
+            Map<GeodeticPoint,ArrayList<TimeIntervalArray>> gpAccessesPerSat = new HashMap<>();
+            for (GeodeticPoint gp : globalRewardGrid.keySet()) {
+                ArrayList<TimeIntervalArray> tias = new ArrayList<>();
+                gpAccessesPerSat.put(gp,tias);
+            }
+            gpAccesses.put(sat,gpAccessesPerSat);
+        }
         // Create initial plans
         for (String sat : satList) {
             localRewardGrids.put(sat,globalRewardGrid);
@@ -85,9 +119,8 @@ public class EqualSimulator {
         int chargeCount = 0;
         int imagingCount = 0;
         int downlinkCount = 0;
-        gpAccesses = new HashMap<>();
         for (String sat : downlinkEvents.keySet()) {
-            Map<GeodeticPoint,Double[]> gpAccessesPerSat = new HashMap<>();
+            Map<GeodeticPoint,ArrayList<TimeIntervalArray>> gpAccessesPerSat = gpAccesses.get(sat);
             for (SatelliteAction sa : takenActions.get(sat)) {
                 switch (sa.getActionType()) {
                     case "charge":
@@ -95,8 +128,15 @@ public class EqualSimulator {
                         break;
                     case "imaging":
                         GeodeticPoint gp = sa.getLocation();
-                        Double[] times = new Double[]{sa.gettStart(),sa.gettEnd()};
-                        gpAccessesPerSat.put(gp,times);
+                        ArrayList<GeodeticPoint> nearbyGPs = getPointsInFOV(gp,new ArrayList<>(globalRewardGrid.keySet()));
+                        for (GeodeticPoint nearbyGP : nearbyGPs) {
+                            TimeIntervalArray tia = new TimeIntervalArray(startDate,endDate);
+                            tia.addRiseTime(sa.gettStart());
+                            tia.addSetTime(sa.gettEnd());
+                            ArrayList<TimeIntervalArray> tias = gpAccessesPerSat.get(nearbyGP);
+                            tias.add(tia);
+                            gpAccessesPerSat.put(nearbyGP,tias);
+                        }
                         imagingCount++;
                         break;
                     case "downlink":
@@ -261,8 +301,18 @@ public class EqualSimulator {
 
     public Map<String, Double> getResults() { return results; }
 
-    public Map<String,Map<GeodeticPoint,Double[]>> getPlannerAccesses() {
+    public Map<String,Map<GeodeticPoint,ArrayList<TimeIntervalArray>>> getPlannerAccesses() {
         return gpAccesses;
     }
-
+    ArrayList<GeodeticPoint> getPointsInFOV(GeodeticPoint location, ArrayList<GeodeticPoint> groundPoints) {
+        ArrayList<GeodeticPoint> pointsInFOV = new ArrayList<>();
+        for (GeodeticPoint gp : groundPoints) {
+            double distance = Math.sqrt(Math.pow(location.getLatitude()-gp.getLatitude(),2)+Math.pow(location.getLongitude()-gp.getLongitude(),2)); // in radians latitude
+            double radius = 577; // kilometers for 500 km orbit height, 30 deg half angle, NOT spherical trig TODO
+            if(distance * 111.1 * 180 / Math.PI < radius) {
+                pointsInFOV.add(gp);
+            }
+        }
+        return pointsInFOV;
+    }
 }

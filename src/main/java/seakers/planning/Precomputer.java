@@ -53,7 +53,7 @@ public class Precomputer {
 
     public Precomputer(String plannerRepo) {
         plannerRepoFilePath = plannerRepo;
-        durationDays = 30.0;
+        durationDays = 0.1;
         OrekitConfig.init(16);
         File orekitData = new File("./src/main/resources/orekitResources");
         DataProvidersManager manager = DataProvidersManager.getInstance();
@@ -74,7 +74,7 @@ public class Precomputer {
         // Initializing
         ArrayList<Satellite> imagers = new ArrayList<>();
         Collection<Instrument> ssPayload = new ArrayList<>();
-        double ssCrossFOVRadians = Math.toRadians(45.0);
+        double ssCrossFOVRadians = Math.toRadians(30.0);
         double ssAlongFOVRadians = Math.toRadians(15.0); // make sure to change fovea if you change this!!!
         NadirRectangularFOV ssFOV = new NadirRectangularFOV(ssCrossFOVRadians,ssAlongFOVRadians,0.0,earthShape);
         Instrument ssImager = new Instrument("Smallsat imager", ssFOV, 100.0, 100.0);
