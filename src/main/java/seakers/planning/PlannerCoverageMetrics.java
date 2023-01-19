@@ -57,7 +57,7 @@ public class PlannerCoverageMetrics {
 
     public PlannerCoverageMetrics(String plannerRepo, Map<String,Map<GeodeticPoint,ArrayList<TimeIntervalArray>>> plannerAccesses) {
         plannerRepoFilePath = plannerRepo;
-        durationDays = 30.0;
+        durationDays = 7.0;
         propertiesPropagator = new Properties();
         OrekitConfig.init(4);
         File orekitData = new File("./src/main/resources/orekitResources");

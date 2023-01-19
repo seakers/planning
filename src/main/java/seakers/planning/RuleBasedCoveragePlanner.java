@@ -101,7 +101,7 @@ public class RuleBasedCoveragePlanner {
                         count = obsCounts.get(obs);
                     }
                 }
-                rewardGrid.put(gp,(rewardGrid.get(gp)+elapsedTime)/(count+1));
+                rewardGrid.put(gp,(rewardGrid.get(gp)+elapsedTime)/(5*count+1));
             }
             Set<Double> values = new HashSet<>(rewardGrid.values());
             boolean isUnique = values.size() == 1;
@@ -172,7 +172,7 @@ public class RuleBasedCoveragePlanner {
                     }
                     break;
                 case("imaging"):
-                    double rho = (86400.0*30.0-a.gettEnd())/(86400.0*30.0);
+                    double rho = (86400.0*7.0-a.gettEnd())/(86400.0*7.0);
                     double e = Math.pow(rho,1) * estimatedReward;
                     double adjustedReward = a.getReward() + e;
 //                    Random rand = new Random();

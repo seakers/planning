@@ -65,9 +65,9 @@ public class EqualSimulator {
         manager.addProvider(new DirectoryCrawler(orekitData));
         TimeScale utc = TimeScalesFactory.getUTC();
         startDate = new AbsoluteDate(2020, 1, 1, 10, 30, 00.000, utc);
-        endDate = startDate.shiftedBy(30.0*86400);
+        endDate = startDate.shiftedBy(7.0*86400);
         debug = true;
-        endTime = 86400.0*30.0;
+        endTime = 86400.0*7.0;
         results = new HashMap<>();
         localRewardGrids = new HashMap<>();
         actionsTaken = new HashMap<>();
@@ -287,6 +287,10 @@ public class EqualSimulator {
             case "ruleBased_coverage":
                 RuleBasedCoveragePlanner ruleBasedCoveragePlanner = new RuleBasedCoveragePlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
                 currentPlans.put(sat, ruleBasedCoveragePlanner.getResults());
+                break;
+            case "greedy_coverage":
+                GreedyCoveragePlanner greedyCoveragePlanner = new GreedyCoveragePlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);
+                currentPlans.put(sat, greedyCoveragePlanner.getResults());
                 break;
             case "mcts":
                 MCTSPlanner mctsPlanner = new MCTSPlanner(observationEvents.get(sat), downlinkEvents.get(sat), localRewardGrids.get(sat), currentStates.get(sat), crosslinkInfo.get(sat), settings);

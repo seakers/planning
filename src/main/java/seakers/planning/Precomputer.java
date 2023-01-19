@@ -53,7 +53,7 @@ public class Precomputer {
 
     public Precomputer(String plannerRepo) {
         plannerRepoFilePath = plannerRepo;
-        durationDays = 0.1;
+        durationDays = 7.0;
         OrekitConfig.init(16);
         File orekitData = new File("./src/main/resources/orekitResources");
         DataProvidersManager manager = DataProvidersManager.getInstance();
