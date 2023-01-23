@@ -50,11 +50,6 @@ public class GreedyCoveragePlanner {
             if(bestAction==null) {
                 break;
             }
-            double newTime = bestAction.gettStart();
-            if(bestAction.getLocation() != null) {
-                updateRewardGrid(bestAction.getLocation(),newTime-lastTime,obsCounts);
-                lastTime = newTime;
-            }
             StateAction stateAction = new StateAction(s,bestAction);
             s = transitionFunction(s,bestAction);
             resultList.add(stateAction);
@@ -178,9 +173,10 @@ public class GreedyCoveragePlanner {
         ArrayList<SatelliteAction> possibleActions = new ArrayList<>();
         for (Observation obs : sortedObservations) {
             if(obs.getObservationStart() > currentTime) {
-                SatelliteAction obsAction = new SatelliteAction(obs.getObservationStart(),obs.getObservationEnd(),obs.getObservationPoint(),"imaging",rewardGrid.get(obs.getObservationPoint()),obs.getObservationAngle());
+                SatelliteAction obsAction = new SatelliteAction(obs.getObservationStart(),obs.getObservationStart()+0.01,obs.getObservationPoint(),"imaging",rewardGrid.get(obs.getObservationPoint()),obs.getObservationAngle());
                 if(canSlew(s.getCurrentAngle(),obs.getObservationAngle(),currentTime,obs.getObservationStart())) {
                     possibleActions.add(obsAction);
+                    break;
                 }
             }
         }
@@ -198,7 +194,7 @@ public class GreedyCoveragePlanner {
         if(!resources) {
             for (int i = 0; i < downlinks.getRiseAndSetTimesList().length; i = i + 2) {
                 if (downlinks.getRiseAndSetTimesList()[i] > currentTime && downlinks.getRiseAndSetTimesList()[i] < currentTime+60) {
-                    SatelliteAction downlinkAction = new SatelliteAction(downlinks.getRiseAndSetTimesList()[i], downlinks.getRiseAndSetTimesList()[i]+60, null, "downlink");
+                    SatelliteAction downlinkAction = new SatelliteAction(downlinks.getRiseAndSetTimesList()[i], downlinks.getRiseAndSetTimesList()[i]+0.01, null, "downlink");
                     possibleActions.add(downlinkAction);
                 }
             }

@@ -14,6 +14,7 @@ import org.orekit.time.TimeScalesFactory;
 import org.orekit.utils.Constants;
 import org.orekit.utils.IERSConventions;
 import seakers.orekit.coverage.access.TimeIntervalArray;
+import seakers.orekit.coverage.access.TimeIntervalMerger;
 import seakers.orekit.util.OrekitConfig;
 
 import java.io.*;
@@ -143,6 +144,19 @@ public class EqualSimulator {
                         downlinkCount++;
                         break;
                 }
+            }
+            for (GeodeticPoint gp : gpAccessesPerSat.keySet()) {
+                ArrayList<TimeIntervalArray> tias = gpAccessesPerSat.get(gp);
+                ArrayList<TimeIntervalArray> newtias = new ArrayList<>();
+                if (!tias.isEmpty()) {
+                    newtias.add(tias.get(0));
+                    for (int i = 1; i < tias.size(); i++) {
+                        if (tias.get(i).getRiseSetTimes().get(0).getTime() > tias.get(i - 1).getRiseSetTimes().get(1).getTime() + 30 * 60) {
+                            newtias.add(tias.get(i));
+                        }
+                    }
+                }
+                gpAccessesPerSat.put(gp,newtias);
             }
             gpAccesses.put(sat,gpAccessesPerSat);
         }

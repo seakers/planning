@@ -79,8 +79,8 @@ public class Precomputer {
         NadirRectangularFOV ssFOV = new NadirRectangularFOV(ssCrossFOVRadians,ssAlongFOVRadians,0.0,earthShape);
         Instrument ssImager = new Instrument("Smallsat imager", ssFOV, 100.0, 100.0);
         ssPayload.add(ssImager);
-        int r = 4;
-        int s = 4;
+        int r = 3;
+        int s = 3;
         for(int m = 0; m < r; m++) {
             for(int n = 0; n < s; n++) {
                 int pu = 360 / (r*s);

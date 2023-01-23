@@ -38,7 +38,7 @@ public class RuleBasedCoveragePlanner {
 
     public ArrayList<StateAction> greedyPlan(SatelliteState initialState) {
         ArrayList<StateAction> resultList = new ArrayList<>();
-        double estimatedReward = 3e7;
+        double estimatedReward = 1e7;
         for(int i = 0; i < 2; i++) {
             //System.out.println("Estimated reward: "+estimatedReward);
             resultList.clear();
@@ -85,23 +85,17 @@ public class RuleBasedCoveragePlanner {
     }
 
     void updateRewardGrid(GeodeticPoint location, double elapsedTime, Map<GeodeticPoint,Integer> obsCounts) {
+        ArrayList<GeodeticPoint> nearbyPoints = getPointsInFOV(location, new ArrayList<>(rewardGrid.keySet()));
         for(GeodeticPoint gp : obsCounts.keySet()) {
-            if(gp.getLatitude() == location.getLatitude()) {
+            if(nearbyPoints.contains(gp)) {
                 obsCounts.put(gp,obsCounts.get(gp)+1);
             }
         }
-        ArrayList<GeodeticPoint> nearbyPoints = getPointsInFOV(location, new ArrayList<>(rewardGrid.keySet()));
         for(GeodeticPoint gp : rewardGrid.keySet()) {
             if(nearbyPoints.contains(gp)) {
                 rewardGrid.put(gp, 0.0);
             } else {
-                int count = 0;
-                for(GeodeticPoint obs : obsCounts.keySet()) {
-                    if(nearbyPoints.contains(obs)) {
-                        count = obsCounts.get(obs);
-                    }
-                }
-                rewardGrid.put(gp,(rewardGrid.get(gp)+elapsedTime)/(5*count+1));
+                rewardGrid.put(gp,(rewardGrid.get(gp)+elapsedTime)/(obsCounts.get(gp)+1));
             }
             Set<Double> values = new HashSet<>(rewardGrid.values());
             boolean isUnique = values.size() == 1;
@@ -199,7 +193,7 @@ public class RuleBasedCoveragePlanner {
         ArrayList<SatelliteAction> possibleActions = new ArrayList<>();
         for (Observation obs : sortedObservations) {
             if(obs.getObservationStart() > currentTime) {
-                SatelliteAction obsAction = new SatelliteAction(obs.getObservationStart(),obs.getObservationEnd(),obs.getObservationPoint(),"imaging",rewardGrid.get(obs.getObservationPoint()),obs.getObservationAngle());
+                SatelliteAction obsAction = new SatelliteAction(obs.getObservationStart(),obs.getObservationStart()+0.01,obs.getObservationPoint(),"imaging",rewardGrid.get(obs.getObservationPoint()),obs.getObservationAngle());
                 if(canSlew(s.getCurrentAngle(),obs.getObservationAngle(),currentTime,obs.getObservationStart())) {
                     possibleActions.add(obsAction);
                 }
@@ -219,7 +213,7 @@ public class RuleBasedCoveragePlanner {
         if(!resources) {
             for (int i = 0; i < downlinks.getRiseAndSetTimesList().length; i = i + 2) {
                 if (downlinks.getRiseAndSetTimesList()[i] > currentTime && downlinks.getRiseAndSetTimesList()[i] < currentTime+60) {
-                    SatelliteAction downlinkAction = new SatelliteAction(downlinks.getRiseAndSetTimesList()[i], downlinks.getRiseAndSetTimesList()[i]+60, null, "downlink");
+                    SatelliteAction downlinkAction = new SatelliteAction(downlinks.getRiseAndSetTimesList()[i], downlinks.getRiseAndSetTimesList()[i]+0.01, null, "downlink");
                     possibleActions.add(downlinkAction);
                 }
             }
