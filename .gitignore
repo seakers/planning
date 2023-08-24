@@ -12,3 +12,6 @@
 /src/test/resources/plannerData/tenthday/
 /src/test/greedyPlannerOutput/*
 /src/test/output/*
+/src/test/resources/xplanner_requirements/
+*.zip
+/src/test/resources/rain/

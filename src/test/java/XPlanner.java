@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.geotools.data.*;
 import org.geotools.data.collection.ListFeatureCollection;
@@ -79,7 +81,12 @@ import static seakers.orekit.object.CommunicationBand.S;
 
 public class XPlanner {
 
-    public static void main(String[] args) {
+    public static String convertToCSV(String[] data) {
+        return Stream.of(data)
+                .collect(Collectors.joining(","));
+    }
+
+    public static void main(String[] args) throws FileNotFoundException {
 
         // Orekit initialization needs
         OrekitConfig.init(4);
@@ -124,6 +131,8 @@ public class XPlanner {
 //                ReceiverAntenna rx = new ReceiverAntenna(1.0,Collections.singleton(S));
                 Satellite smallsat = new Satellite("smallsat"+m+n, ssOrbit, ssPayload);
                 imagers.add(smallsat);
+                System.out.println(RAAN);
+                System.out.println(anom);
             }
         }
         double duration = 1;
@@ -182,33 +191,65 @@ public class XPlanner {
         OrekitConfig.end();
         ArrayList<ArrayList<Observation>> individualPlans = new ArrayList<>();
         ArrayList<Observation> allObservations = new ArrayList<>();
-
+        List<String[]> dataLines = new ArrayList<>();
+        dataLines.add(new String[]
+                { "sat", "lat", "lon", "rise_time", "set_time", "incidence_angle", "reward" });
+        List<String[]> obsLines = new ArrayList<>();
+        obsLines.add(new String[]
+                { "sat", "lat", "lon", "rise_time", "set_time", "incidence_angle", "reward" });
         for (Satellite imager : imagers) {
             Map<TopocentricFrame, TimeIntervalArray> sortedGPAccesses = satelliteGPContacts.get(imager);
             TimeIntervalArray downlinks = downlinkOpps.get(imager);
             Collection<Record<String>> groundTrack = getGroundTrack(imager.getOrbit(),duration,startDate);
-            SMDPPlanner smdpPlanner = new SMDPPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,duration);
-            ArrayList<Observation> smdpOutput = smdpPlanner.getResults();
-            //ArrayList<Observation> planOutput = greedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,);
+            //SMDPPlanner smdpPlanner = new SMDPPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,duration);
+            //ArrayList<Observation> smdpOutput = smdpPlanner.getResults();
+            long start = System.nanoTime();
+            ArrayList<Observation> planOutput = greedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack);
+            long end = System.nanoTime();
+            System.out.printf("Planner took %.4f sec\n", (end - start) / Math.pow(10, 9));
             //ArrayList<Observation> planOutput = smarterGreedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,duration);
             //ArrayList<Observation> planOutput = nadirEval(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack);
-            individualPlans.add(smdpOutput);
-            allObservations.addAll(smdpOutput);
+            //individualPlans.add(smdpOutput);
+            allObservations.addAll(planOutput);
+            for (TopocentricFrame tf : sortedGPAccesses.keySet()) {
+                TimeIntervalArray tia = sortedGPAccesses.get(tf);
+                for (int i = 0; i < tia.getRiseAndSetTimesList().length; i=i+2) {
+                    double incidenceAngle = getIncidenceAngle(tf.getPoint(),tia.getRiseAndSetTimesList()[i],tia.getRiseAndSetTimesList()[i+1],startDate,imager,groundTrack);
+                    dataLines.add(new String[]
+                            { imager.getName(), String.valueOf(tf.getPoint().getLatitude()), String.valueOf(tf.getPoint().getLongitude()), String.valueOf(tia.getRiseAndSetTimesList()[i]), String.valueOf(tia.getRiseAndSetTimesList()[i+1]), String.valueOf(incidenceAngle), String.valueOf(rewardFunction(tf,incidenceAngle,initialCovPointRewards)) });
+                }
+            }
+            for(Observation obs : planOutput) {
+                obsLines.add(new String[]
+                        {imager.getName(), String.valueOf(obs.getObservationPoint().getLatitude()), String.valueOf(obs.getObservationPoint().getLongitude()), String.valueOf(obs.getObservationStart()), String.valueOf(obs.getObservationEnd()), String.valueOf(obs.getObservationAngle()), String.valueOf(obs.getObservationReward())});
+            }
         }
-        ArrayList<GeodeticPoint> observedGPs = new ArrayList<>();
-        for(Observation obs : allObservations) {
-            observedGPs.add(obs.getObservationPoint());
-            System.out.println(obs.toString());
+        File csvOutputFile = new File("accesses.csv");
+        try (PrintWriter pw = new PrintWriter(csvOutputFile)) {
+            dataLines.stream()
+                    .map(XPlanner::convertToCSV)
+                    .forEach(pw::println);
         }
-        processGroundTracks(imagers,greedyPlannerFilePath+"groundtracks.shp",startDate,duration);
-        processGPs(observedGPs,greedyPlannerFilePath+"observed.shp");
-        processGPs(possibleGPs,greedyPlannerFilePath+"possible.shp");
-        processGPs(allGPs,greedyPlannerFilePath+"all.shp");
-        processGPs(updatedPoints,greedyPlannerFilePath+"rainupdated.shp");
-        Map<GeodeticPoint,Double> rainPoints = loadRainfallData();
-        //processRain(rainPoints,greedyPlannerFilePath+"rainfall.shp");
-
-        plotResults(greedyPlannerFilePath);
+        File obsOutputFile = new File("observations.csv");
+        try (PrintWriter pw = new PrintWriter(obsOutputFile)) {
+            obsLines.stream()
+                    .map(XPlanner::convertToCSV)
+                    .forEach(pw::println);
+        }
+//        ArrayList<GeodeticPoint> observedGPs = new ArrayList<>();
+//        for(Observation obs : allObservations) {
+//            observedGPs.add(obs.getObservationPoint());
+//            System.out.println(obs.toString());
+//        }
+//        processGroundTracks(imagers,greedyPlannerFilePath+"groundtracks.shp",startDate,duration);
+//        processGPs(observedGPs,greedyPlannerFilePath+"observed.shp");
+//        processGPs(possibleGPs,greedyPlannerFilePath+"possible.shp");
+//        processGPs(allGPs,greedyPlannerFilePath+"all.shp");
+//        processGPs(updatedPoints,greedyPlannerFilePath+"rainupdated.shp");
+//        Map<GeodeticPoint,Double> rainPoints = loadRainfallData();
+//        //processRain(rainPoints,greedyPlannerFilePath+"rainfall.shp");
+//
+//        plotResults(greedyPlannerFilePath);
     }
 
     private static Set<GndStation> initializeNEN(BodyShape earthShape) {
@@ -251,18 +292,6 @@ public class XPlanner {
             TopocentricFrame bestTF = null;
             double bestRiseTime = Float.POSITIVE_INFINITY;
             double bestSetTime = Float.POSITIVE_INFINITY;
-            for(int r = 0; r < downlinks.getRiseAndSetTimesList().length; r=r+2) {
-                if(currentTime >= downlinks.getRiseAndSetTimesList()[r] && currentTime < downlinks.getRiseAndSetTimesList()[r+1]) {
-                    currentTime = downlinks.getRiseAndSetTimesList()[r+1];
-                    for(Double time : covPointRewards.keySet()) {
-                        if(currentTime > time) {
-                            latestRewardGrid = covPointRewards.get(time);
-                            break;
-                        }
-                    }
-                    break;
-                }
-            }
             for(TopocentricFrame tf : sortedAccesses.keySet()) {
                 double riseTime = sortedAccesses.get(tf).getRiseAndSetTimesList()[0];
                 double setTime = sortedAccesses.get(tf).getRiseAndSetTimesList()[1];
@@ -277,21 +306,13 @@ public class XPlanner {
                 }
                 double newAngle = getIncidenceAngle(tf.getPoint(),riseTime,setTime,startDate,satellite,groundTrack);
                 double slewTorque = 4*Math.abs(newAngle-lastAngle)*0.05/Math.pow(Math.abs(currentTime-riseTime),2);
-                double slewEnergy = slewTorque * 200 * Math.abs(currentTime-riseTime);
-                double energyGain = 5 * Math.abs(currentTime-setTime); // 5 W solar panels
-                double idleEnergyLoss = 4 * Math.abs(currentTime-setTime); // 4 W idle power
-                double imagingEnergy = 5 * (setTime-riseTime); // 2 W camera on
-                double energyChange = energyGain - idleEnergyLoss - imagingEnergy - slewEnergy;
                 if(slewTorque > maxTorque) {
-                    System.out.println("Can't slew! Last angle: "+lastAngle+", new angle: "+newAngle+". Last time: "+currentTime+", new time: "+setTime);
-                    System.out.println("Torque required: "+slewTorque);
+                    //System.out.println("Can't slew! Last angle: "+lastAngle+", new angle: "+newAngle+". Last time: "+currentTime+", new time: "+setTime);
+                    //System.out.println("Torque required: "+slewTorque);
                     continue;
                 }
                 if(riseTime <= currentTime) {
                     riseTime = currentTime;
-                }
-                if(energy+energyChange < energyLimit) {
-                    continue;
                 }
                 double reward = rewardFunction(tf,getIncidenceAngle(tf.getPoint(),riseTime,setTime,startDate,satellite,groundTrack),latestRewardGrid);
                 if(reward > maximum) {
@@ -300,7 +321,7 @@ public class XPlanner {
                     bestRiseTime = riseTime;
                     bestSetTime = setTime;
                     lastAngle = newAngle;
-                    energy = energy+energyChange;
+                    energy = energy;
                 }
                 count++;
                 if(count > 1) { // ADJUST THIS TO SET "GREEDINESS"
@@ -318,7 +339,7 @@ public class XPlanner {
             Observation obs = new Observation(bestTF.getPoint(),bestRiseTime,bestSetTime,maximum);
             observations.add(obs);
             currentTime = bestSetTime;
-            System.out.println(energy/3600);
+            //System.out.println(energy/3600);
         }
         System.out.println("Total reward: "+totalreward);
         return observations;
@@ -460,7 +481,7 @@ public class XPlanner {
         Map<GeodeticPoint,Double> pointRewards = new HashMap<>();
         ArrayList<GeodeticPoint> updates = new ArrayList<>();
         List<List<String>> riverRecords = new ArrayList<>();
-        try (BufferedReader br = new BufferedReader(new FileReader("./src/main/java/seakers/orekit/overlap/grwl_river_output.csv"))) { // CHANGE THIS FOR YOUR IMPLEMENTATION
+        try (BufferedReader br = new BufferedReader(new FileReader("./src/test/resources/grwl_river_output.csv"))) { // CHANGE THIS FOR YOUR IMPLEMENTATION
             String line;
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
@@ -479,7 +500,7 @@ public class XPlanner {
             pointRewards.put(riverPoint,width/5000.0/2);
         }
         List<List<String>> lakeRecords = new ArrayList<>();
-        try (BufferedReader br = new BufferedReader(new FileReader("./src/main/java/seakers/orekit/overlap/hydrolakes.csv"))) { // CHANGE THIS FOR YOUR IMPLEMENTATION
+        try (BufferedReader br = new BufferedReader(new FileReader("./src/test/resources/hydrolakes.csv"))) { // CHANGE THIS FOR YOUR IMPLEMENTATION
             String line;
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
@@ -498,7 +519,7 @@ public class XPlanner {
         }
 
         // Loading rain modifications
-        String filepath = "./src/main/rain/";
+        String filepath = "./src/test/resources/rain/";
         int numfiles = new File(filepath).list().length;
         Map<Double,Map<GeodeticPoint,Double>> pointRewardsOverTime = new HashMap<>();
 
@@ -507,8 +528,10 @@ public class XPlanner {
             double time = i*30.0;
             String timestampString = Integer.toString(timestamp);
             if(timestampString.length() == 1) {
-                timestampString = "00"+timestampString;
+                timestampString = "000"+timestampString;
             } else if(timestampString.length() == 2) {
+                timestampString = "00"+timestampString;
+            } else if(timestampString.length() == 3) {
                 timestampString = "0"+timestampString;
             }
             Map<GeodeticPoint,Double> rainRewards = new HashMap<>();
