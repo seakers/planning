@@ -48,6 +48,11 @@ public class SatelliteAction {
     public void setReward(double reward) {
         this.reward = reward;
     }
+
+    public void setAngle(double angle) {
+        this.angle = angle;
+    }
+
     public String toString() {
         String printString = "\nAction start: "+tStart+", action end: "+tEnd+", ";
         switch(actionType) {

@@ -32,7 +32,6 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
-import org.moeaframework.problem.misc.Lis;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.FilterFactory2;
@@ -92,7 +91,7 @@ public class XPlanner {
         // Orekit initialization needs
         OrekitConfig.init(4);
         String greedyPlannerFilePath = "./src/test/greedyPlannerOutput/";
-        File orekitData = new File("H:\\Documents\\git\\planning_orekit\\planning\\src\\main\\resources\\orekitResources");
+        File orekitData = new File(".\\src\\main\\resources\\orekitResources");
         DataProvidersManager manager = DataProvidersManager.getInstance();
         manager.addProvider(new DirectoryCrawler(orekitData));
         Level level = Level.ALL;
@@ -145,11 +144,11 @@ public class XPlanner {
 //        double duration = 0.08333333333333; // 2 hours, 200
         double duration = 0.04166666666667; // 1 hour, 100
         Map<Double,Map<GeodeticPoint,Double>> covPointRewards = new HashMap<>();
-        if(!new File("H:\\Documents\\git\\planning_orekit\\planning\\src\\test\\resources\\coverageRewardsUnweighted").exists()) {
+        if(!new File(".\\src\\test\\resources\\coverageRewardsUnweighted").exists()) {
             covPointRewards = loadCoveragePoints();
         } else {
             try {
-                File toRead=new File("H:\\Documents\\git\\planning_orekit\\planning\\src\\test\\resources\\coverageRewardsUnweighted");
+                File toRead=new File(".\\coverageRewardsUnweighted");
                 FileInputStream fis=new FileInputStream(toRead);
                 ObjectInputStream ois=new ObjectInputStream(fis);
 

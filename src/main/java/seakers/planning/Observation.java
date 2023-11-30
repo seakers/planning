@@ -18,12 +18,12 @@ public class Observation implements Serializable {
         this.observationEnd = observationEnd;
         this.observationReward = observationReward;
     }
-    public Observation(GeodeticPoint observationPoint, double observationStart, double observationEnd, double observationReward, double observationAngle) {
+    public Observation(GeodeticPoint observationPoint, double observationStart, double observationEnd, double observationAngle, double observationReward) {
         this.observationPoint = observationPoint;
         this.observationStart = observationStart;
         this.observationEnd = observationEnd;
-        this.observationReward = observationReward;
         this.observationAngle = observationAngle;
+        this.observationReward = observationReward;
     }
     public double getObservationStart() {
         return observationStart;
