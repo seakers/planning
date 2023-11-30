@@ -32,6 +32,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
+import org.moeaframework.problem.misc.Lis;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.FilterFactory2;
@@ -91,7 +92,7 @@ public class XPlanner {
         // Orekit initialization needs
         OrekitConfig.init(4);
         String greedyPlannerFilePath = "./src/test/greedyPlannerOutput/";
-        File orekitData = new File("./src/main/resources/orekitResources");
+        File orekitData = new File("H:\\Documents\\git\\planning_orekit\\planning\\src\\main\\resources\\orekitResources");
         DataProvidersManager manager = DataProvidersManager.getInstance();
         manager.addProvider(new DirectoryCrawler(orekitData));
         Level level = Level.ALL;
@@ -104,7 +105,7 @@ public class XPlanner {
         BodyShape earthShape = new OneAxisEllipsoid(Constants.WGS84_EARTH_EQUATORIAL_RADIUS,
                 Constants.WGS84_EARTH_FLATTENING, earthFrame);
         TimeScale utc = TimeScalesFactory.getUTC();
-        AbsoluteDate startDate = new AbsoluteDate(2020, 1, 1, 0, 0, 00.000, utc);
+        AbsoluteDate startDate = new AbsoluteDate(2020, 1, 1, 13, 0, 00.000, utc);
         double mu = Constants.WGS84_EARTH_MU;
 
         // Initializing
@@ -116,7 +117,7 @@ public class XPlanner {
         Instrument ssImager = new Instrument("Smallsat imager", ssFOV, 100.0, 100.0);
         ssPayload.add(ssImager);
         int r = 1;
-        int s = 1;
+        int s = 5; // # satellites
         for(int m = 0; m < r; m++) {
             for(int n = 0; n < s; n++) {
                 int pu = 360 / (r*s);
@@ -131,17 +132,24 @@ public class XPlanner {
 //                ReceiverAntenna rx = new ReceiverAntenna(1.0,Collections.singleton(S));
                 Satellite smallsat = new Satellite("smallsat"+m+n, ssOrbit, ssPayload);
                 imagers.add(smallsat);
-                System.out.println(RAAN);
-                System.out.println(anom);
+//                System.out.println(RAAN);
+//                System.out.println(anom);
             }
         }
-        double duration = 1;
+//        double duration = 1; // in days, i.e. 1 is for full 24 hours
+//        double duration = 0.5; // 12 hours
+//        double duration = 0.41666666666667; // 10 hours, 350
+//        double duration = 0.33333333333333; // 8 hours, 300
+//        double duration = 0.25; // 6 hours
+//        double duration = 0.16666666666667; // 4 hours, 400
+//        double duration = 0.08333333333333; // 2 hours, 200
+        double duration = 0.04166666666667; // 1 hour, 100
         Map<Double,Map<GeodeticPoint,Double>> covPointRewards = new HashMap<>();
-        if(!new File("./src/test/resources/coverageRewardsUnweighted").exists()) {
+        if(!new File("H:\\Documents\\git\\planning_orekit\\planning\\src\\test\\resources\\coverageRewardsUnweighted").exists()) {
             covPointRewards = loadCoveragePoints();
         } else {
             try {
-                File toRead=new File("./src/test/resources/coverageRewardsUnweighted");
+                File toRead=new File("H:\\Documents\\git\\planning_orekit\\planning\\src\\test\\resources\\coverageRewardsUnweighted");
                 FileInputStream fis=new FileInputStream(toRead);
                 ObjectInputStream ois=new ObjectInputStream(fis);
 
@@ -153,7 +161,7 @@ public class XPlanner {
         }
         ArrayList<GeodeticPoint> updatedPoints = new ArrayList<>();
         try {
-            File toRead=new File("./src/test/resources/updatedPoints");
+            File toRead=new File("H:\\Documents\\git\\planning_orekit\\planning\\src\\test\\resources\\updatedPoints");
             FileInputStream fis=new FileInputStream(toRead);
             ObjectInputStream ois=new ObjectInputStream(fis);
 
@@ -180,7 +188,7 @@ public class XPlanner {
             TimeIntervalMerger merger = new TimeIntervalMerger(downlinks.values());
             TimeIntervalArray mergedDownlinks = merger.orCombine();
             downlinkOpps.put(imager, mergedDownlinks);
-            System.out.println(Arrays.toString(mergedDownlinks.getRiseAndSetTimesList()));
+//            System.out.println(Arrays.toString(mergedDownlinks.getRiseAndSetTimesList()));
             Map<TopocentricFrame, TimeIntervalArray> gpAccesses = gpContacts.getEvents();
             Map<TopocentricFrame, TimeIntervalArray> sortedGPAccesses = sortAccesses(gpAccesses, duration);
             for(TopocentricFrame tf : sortedGPAccesses.keySet()) {
@@ -201,16 +209,22 @@ public class XPlanner {
             Map<TopocentricFrame, TimeIntervalArray> sortedGPAccesses = satelliteGPContacts.get(imager);
             TimeIntervalArray downlinks = downlinkOpps.get(imager);
             Collection<Record<String>> groundTrack = getGroundTrack(imager.getOrbit(),duration,startDate);
-            //SMDPPlanner smdpPlanner = new SMDPPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,duration);
-            //ArrayList<Observation> smdpOutput = smdpPlanner.getResults();
+//            long startUsedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(); // calc memory used before exec
             long start = System.nanoTime();
-            ArrayList<Observation> planOutput = greedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack);
+            SMDPPlanner smdpPlanner = new SMDPPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,duration);
+            ArrayList<Observation> smdpOutput = smdpPlanner.getResults();
+
+//            ArrayList<Observation> planOutput = greedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack);
+//            long endUsedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(); // calc memory after code exec
             long end = System.nanoTime();
             System.out.printf("Planner took %.4f sec\n", (end - start) / Math.pow(10, 9));
+//            System.out.println("Start mem: "+startUsedMemory/(1024*1024));
+//            System.out.println("End mem: "+endUsedMemory/(1024*1024));
+//            System.out.println("Planner used "+ (endUsedMemory - startUsedMemory)/(1024*1024) +" MB of memory");
             //ArrayList<Observation> planOutput = smarterGreedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,duration);
             //ArrayList<Observation> planOutput = nadirEval(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack);
-            //individualPlans.add(smdpOutput);
-            allObservations.addAll(planOutput);
+            individualPlans.add(smdpOutput);
+//            allObservations.addAll(planOutput);
             for (TopocentricFrame tf : sortedGPAccesses.keySet()) {
                 TimeIntervalArray tia = sortedGPAccesses.get(tf);
                 for (int i = 0; i < tia.getRiseAndSetTimesList().length; i=i+2) {
@@ -219,7 +233,7 @@ public class XPlanner {
                             { imager.getName(), String.valueOf(tf.getPoint().getLatitude()), String.valueOf(tf.getPoint().getLongitude()), String.valueOf(tia.getRiseAndSetTimesList()[i]), String.valueOf(tia.getRiseAndSetTimesList()[i+1]), String.valueOf(incidenceAngle), String.valueOf(rewardFunction(tf,incidenceAngle,initialCovPointRewards)) });
                 }
             }
-            for(Observation obs : planOutput) {
+            for(Observation obs : smdpOutput) {
                 obsLines.add(new String[]
                         {imager.getName(), String.valueOf(obs.getObservationPoint().getLatitude()), String.valueOf(obs.getObservationPoint().getLongitude()), String.valueOf(obs.getObservationStart()), String.valueOf(obs.getObservationEnd()), String.valueOf(obs.getObservationAngle()), String.valueOf(obs.getObservationReward())});
             }
@@ -230,7 +244,7 @@ public class XPlanner {
                     .map(XPlanner::convertToCSV)
                     .forEach(pw::println);
         }
-        File obsOutputFile = new File("observations.csv");
+        File obsOutputFile = new File("obs.csv");
         try (PrintWriter pw = new PrintWriter(obsOutputFile)) {
             obsLines.stream()
                     .map(XPlanner::convertToCSV)
@@ -277,10 +291,14 @@ public class XPlanner {
     }
 
     public static ArrayList<Observation> greedyPlanner(Satellite satellite, Map<TopocentricFrame, TimeIntervalArray> sortedAccesses, TimeIntervalArray downlinks, AbsoluteDate startDate, Map<Double,Map<GeodeticPoint,Double>> covPointRewards, Collection<Record<String>> groundTrack) {
+
+        long startUsedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(); // calc memory used before exec
+
         double currentTime = 0;
         ArrayList<Observation> observations = new ArrayList<>();
         ArrayList<TopocentricFrame> recentTFs = new ArrayList<>();
-        double maxTorque = 4e-3; // Nm, BCT XACT 4e-3
+        double maxTorque = 0.1; // Nm, BCT XACT 4e-3
+        double inertia = 2.66; // kg-m2
         double lastAngle = 0.0;
         double energy = 10*3600; // 10 Wh to Ws
         double energyLimit = energy * 0.7; // 70% of max
@@ -301,12 +319,12 @@ public class XPlanner {
                         recent = true;
                     }
                 }
-                if(setTime <= currentTime || recent) {
+                if(riseTime <= currentTime || recent) {
                     continue;
                 }
                 double newAngle = getIncidenceAngle(tf.getPoint(),riseTime,setTime,startDate,satellite,groundTrack);
-                double slewTorque = 4*Math.abs(newAngle-lastAngle)*0.05/Math.pow(Math.abs(currentTime-riseTime),2);
-                if(slewTorque > maxTorque) {
+                double slewTorque = 4*Math.abs(newAngle-lastAngle)*inertia/(Math.pow(Math.abs(currentTime-setTime),2)); //System.out.println(slewTorque);
+                if(slewTorque > maxTorque) { //System.out.println(">");
                     //System.out.println("Can't slew! Last angle: "+lastAngle+", new angle: "+newAngle+". Last time: "+currentTime+", new time: "+setTime);
                     //System.out.println("Torque required: "+slewTorque);
                     continue;
@@ -336,12 +354,16 @@ public class XPlanner {
             }
             recentTFs.add(bestTF);
             totalreward = totalreward + maximum;
-            Observation obs = new Observation(bestTF.getPoint(),bestRiseTime,bestSetTime,maximum);
+            Observation obs = new Observation(bestTF.getPoint(),bestRiseTime,bestSetTime,lastAngle,maximum);
             observations.add(obs);
             currentTime = bestSetTime;
             //System.out.println(energy/3600);
+//            long endUsedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(); // calc memory after code exec
+//            System.out.println("Planner used1 "+ (endUsedMemory - startUsedMemory)/(1024*1024) +" MB of memory");
         }
         System.out.println("Total reward: "+totalreward);
+        long endUsedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(); // calc memory after code exec
+        System.out.println("Planner used2 "+ (endUsedMemory - startUsedMemory)/(1024*1024) +" MB of memory");
         return observations;
     }
     public static ArrayList<Observation> nadirEval(Satellite satellite, Map<TopocentricFrame, TimeIntervalArray> sortedAccesses, TimeIntervalArray downlinks, AbsoluteDate startDate, Map<Double,Map<GeodeticPoint,Double>> covPointRewards, Collection<Record<String>> groundTrack) {
@@ -481,7 +503,7 @@ public class XPlanner {
         Map<GeodeticPoint,Double> pointRewards = new HashMap<>();
         ArrayList<GeodeticPoint> updates = new ArrayList<>();
         List<List<String>> riverRecords = new ArrayList<>();
-        try (BufferedReader br = new BufferedReader(new FileReader("./src/test/resources/grwl_river_output.csv"))) { // CHANGE THIS FOR YOUR IMPLEMENTATION
+        try (BufferedReader br = new BufferedReader(new FileReader("H:\\Documents\\git\\planning_orekit\\planning\\src\\test\\resources\\grwl_river_output.csv"))) { // CHANGE THIS FOR YOUR IMPLEMENTATION
             String line;
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
@@ -500,7 +522,7 @@ public class XPlanner {
             pointRewards.put(riverPoint,width/5000.0/2);
         }
         List<List<String>> lakeRecords = new ArrayList<>();
-        try (BufferedReader br = new BufferedReader(new FileReader("./src/test/resources/hydrolakes.csv"))) { // CHANGE THIS FOR YOUR IMPLEMENTATION
+        try (BufferedReader br = new BufferedReader(new FileReader("H:\\Documents\\git\\planning_orekit\\planning\\src\\test\\resources\\hydrolakes.csv"))) { // CHANGE THIS FOR YOUR IMPLEMENTATION
             String line;
             while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
@@ -559,7 +581,7 @@ public class XPlanner {
                 for (GeodeticPoint rp : rainRewards.keySet()) {
                     double dist = Math.sqrt(Math.pow(gp.getLatitude() - rp.getLatitude(), 2)+Math.pow(gp.getLongitude() - rp.getLongitude(),2));
                     if(Math.toDegrees(dist) < 0.15) {
-                        reward = reward + rainRewards.get(rp);
+//                        reward = reward + rainRewards.get(rp);
                         if(!updates.contains(gp)) {
                             updates.add(gp);
                         }
