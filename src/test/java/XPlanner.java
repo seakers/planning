@@ -140,7 +140,7 @@ public class XPlanner {
 //        double duration = 0.5; // 12 hours
 //        double duration = 0.41666666666667; // 10 hours, 350
 //        double duration = 0.33333333333333; // 8 hours, 300
-//        double duration = 0.25; // 6 hours
+//        double duration = 0.25; // 6 hours, 250
 //        double duration = 0.16666666666667; // 4 hours, 400
 //        double duration = 0.08333333333333; // 2 hours, 200
         double duration = 0.04166666666667; // 1 hour, 100
