@@ -113,9 +113,13 @@ public class XPlanner {
         double ssCrossFOVRadians = Math.toRadians(30.0);
         double ssAlongFOVRadians = Math.toRadians(1.0);
         NadirRectangularFOV ssFOV = new NadirRectangularFOV(ssCrossFOVRadians,ssAlongFOVRadians,0.0,earthShape);
-        Instrument ssImager = new Instrument("Smallsat imager", ssFOV, 100.0, 100.0);
-        ssPayload.add(ssImager);
-        int r = 1;
+        Instrument visImager = new Instrument("Smallsat imager", ssFOV, 100.0, 100.0); // visbile imager
+//        Instrument altimeter = new Instrument("smallsat altimeter", ssFOV, 100.0, 100.0);
+//        Instrument TIRimager = new Instrument("smallsat TIR imager", ssFOV, 100.0, 100.0);
+        ssPayload.add(visImager);
+//        ssPayload.add(altimeter);
+//        ssPayload.add(TIRimager);
+        int r = 1; // # planes?
         int s = 5; // # satellites
         for(int m = 0; m < r; m++) {
             for(int n = 0; n < s; n++) {
@@ -143,6 +147,8 @@ public class XPlanner {
 //        double duration = 0.16666666666667; // 4 hours, 400
 //        double duration = 0.08333333333333; // 2 hours, 200
         double duration = 0.04166666666667; // 1 hour, 100
+
+        double totalRuntime = 0;
         Map<Double,Map<GeodeticPoint,Double>> covPointRewards = new HashMap<>();
         if(!new File(".\\src\\test\\resources\\coverageRewardsUnweighted").exists()) {
             covPointRewards = loadCoveragePoints();
@@ -160,7 +166,7 @@ public class XPlanner {
         }
         ArrayList<GeodeticPoint> updatedPoints = new ArrayList<>();
         try {
-            File toRead=new File("H:\\Documents\\git\\planning_orekit\\planning\\src\\test\\resources\\updatedPoints");
+            File toRead=new File(".\\src\\test\\resources\\updatedPoints");
             FileInputStream fis=new FileInputStream(toRead);
             ObjectInputStream ois=new ObjectInputStream(fis);
 
@@ -216,7 +222,9 @@ public class XPlanner {
 //            ArrayList<Observation> planOutput = greedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack);
 //            long endUsedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(); // calc memory after code exec
             long end = System.nanoTime();
-            System.out.printf("Planner took %.4f sec\n", (end - start) / Math.pow(10, 9));
+            double runtime = (end - start) / Math.pow(10, 9);
+            totalRuntime = runtime + totalRuntime;
+            System.out.printf("Planner took %.4f sec\n", runtime);
 //            System.out.println("Start mem: "+startUsedMemory/(1024*1024));
 //            System.out.println("End mem: "+endUsedMemory/(1024*1024));
 //            System.out.println("Planner used "+ (endUsedMemory - startUsedMemory)/(1024*1024) +" MB of memory");
@@ -249,6 +257,7 @@ public class XPlanner {
                     .map(XPlanner::convertToCSV)
                     .forEach(pw::println);
         }
+        System.out.println("Total planner time: "+totalRuntime+" sec");
 //        ArrayList<GeodeticPoint> observedGPs = new ArrayList<>();
 //        for(Observation obs : allObservations) {
 //            observedGPs.add(obs.getObservationPoint());

@@ -24,22 +24,24 @@ public class SMDPPlanner {
 
     public SMDPPlanner(Satellite satellite, Map<TopocentricFrame, TimeIntervalArray> sortedGPAccesses, TimeIntervalArray downlinks, AbsoluteDate startDate, Map<Double,Map<GeodeticPoint,Double>> covPointRewards, Collection<Record<String>> groundTrack, double duration) {
         this.satellite = satellite;
-        this.sortedGPAccesses = sortedGPAccesses;
+        this.sortedGPAccesses = sortedGPAccesses; //System.out.println("sg"+sortedGPAccesses);
         this.downlinks = downlinks;
         this.startDate = startDate;
         this.covPointRewards = covPointRewards;
         this.groundTrack = groundTrack;
         this.duration = duration;
         this.gamma = 0.999;
-        this.dSolveInit = 1;
+        this.dSolveInit = 4;
         ArrayList<GeodeticPoint> initialImages = new ArrayList<>();
-        ArrayList<StateAction> stateActions = forwardSearch(new SatelliteState(0,0,initialImages));
+        ArrayList<StateAction> stateActions = null;
+        if (!sortedGPAccesses.isEmpty()){ stateActions = forwardSearch(new SatelliteState(0,0,initialImages));
         ArrayList<Observation> observations = new ArrayList<>();
         for (StateAction stateAction : stateActions) {
             Observation newObs = new Observation(stateAction.getA().getLocation(),stateAction.getA().gettStart(),stateAction.getA().gettEnd(), stateAction.getA().getAngle(),stateAction.getA().getReward());
             observations.add(newObs);
         }
-        results = observations;
+        results = observations;}
+        else {results = new ArrayList<>();}
     }
 
     public ActionResult SelectAction(SatelliteState s, int dSolve){
