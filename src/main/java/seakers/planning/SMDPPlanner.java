@@ -21,26 +21,39 @@ public class SMDPPlanner {
     private double gamma;
     private int dSolveInit;
     private Map<GeodeticPoint,Double> latestRewardGrid;
+    private Map<Double, GeodeticPoint> sspMap;
 
     public SMDPPlanner(Satellite satellite, Map<TopocentricFrame, TimeIntervalArray> sortedGPAccesses, TimeIntervalArray downlinks, AbsoluteDate startDate, Map<Double,Map<GeodeticPoint,Double>> covPointRewards, Collection<Record<String>> groundTrack, double duration) {
         this.satellite = satellite;
-        this.sortedGPAccesses = sortedGPAccesses; //System.out.println("sg"+sortedGPAccesses);
+        this.sortedGPAccesses = sortedGPAccesses;
         this.downlinks = downlinks;
         this.startDate = startDate;
         this.covPointRewards = covPointRewards;
         this.groundTrack = groundTrack;
         this.duration = duration;
         this.gamma = 0.999;
-        this.dSolveInit = 4;
+        this.dSolveInit = 2;
+        Map<Double, GeodeticPoint> sspMap = new HashMap<>();
+        for (Record<String> ind : groundTrack) {
+            String rawString = ind.getValue();
+            AbsoluteDate date = ind.getDate();
+            String[] splitString = rawString.split(",");
+            double latitude = Double.parseDouble(splitString[0]);
+            double longitude = Double.parseDouble(splitString[1]);
+            GeodeticPoint ssp = new GeodeticPoint(Math.toRadians(latitude),Math.toRadians(longitude),0);
+            double elapsedTime = date.durationFrom(startDate);
+            sspMap.put(elapsedTime,ssp);
+        }
+        this.sspMap = sspMap;
         ArrayList<GeodeticPoint> initialImages = new ArrayList<>();
         ArrayList<StateAction> stateActions = null;
         if (!sortedGPAccesses.isEmpty()){ stateActions = forwardSearch(new SatelliteState(0,0,initialImages));
-        ArrayList<Observation> observations = new ArrayList<>();
-        for (StateAction stateAction : stateActions) {
-            Observation newObs = new Observation(stateAction.getA().getLocation(),stateAction.getA().gettStart(),stateAction.getA().gettEnd(), stateAction.getA().getAngle(),stateAction.getA().getReward());
-            observations.add(newObs);
-        }
-        results = observations;}
+            ArrayList<Observation> observations = new ArrayList<>();
+            for (StateAction stateAction : stateActions) {
+                Observation newObs = new Observation(stateAction.getA().getLocation(),stateAction.getA().gettStart(),stateAction.getA().gettEnd(), stateAction.getA().getAngle(),stateAction.getA().getReward());
+                observations.add(newObs);
+            }
+            results = observations;}
         else {results = new ArrayList<>();}
     }
 
@@ -50,7 +63,7 @@ public class SMDPPlanner {
         }
         ActionResult res = new ActionResult(null,Double.NEGATIVE_INFINITY);
         SatelliteState sCopy = new SatelliteState(s.getT(),s.gettPrevious(),s.getImages());
-        ArrayList<SatelliteAction> feasibleActions = getActionSpace(sCopy); //System.out.println("fea "+feasibleActions);
+        ArrayList<SatelliteAction> feasibleActions = getActionSpace(sCopy);
         for (int a = 0; a < feasibleActions.size(); a++) {
             double value = 0;
             value = rewardFunction(sCopy,feasibleActions.get(a),getIncidenceAngle(feasibleActions.get(a)));
@@ -69,11 +82,12 @@ public class SMDPPlanner {
     public ArrayList<StateAction> forwardSearch(SatelliteState initialState) {
         ArrayList<StateAction> resultList = new ArrayList<>();
         latestRewardGrid = covPointRewards.get(0.0);
-        ActionResult initRes = SelectAction(initialState,dSolveInit); //System.out.println(initRes);
+        ActionResult initRes = SelectAction(initialState,dSolveInit);
         SatelliteState newSatelliteState = transitionFunction(initialState,initRes.getA());
         resultList.add(new StateAction(initialState,initRes.getA()));
         double value = initRes.getV();
-        double initReward = rewardFunction(newSatelliteState,initRes.getA(),getIncidenceAngle(initRes.getA())); //System.out.println("ire "+initReward);// +", "+initRes.getA() +", "+getIncidenceAngle(initRes.getA()));
+        double initReward = rewardFunction(newSatelliteState,initRes.getA(),getIncidenceAngle(initRes.getA()));
+        //double initReward = rewardFunction(newSatelliteState,initRes.getA(),Math.random());
         double totalScore = initReward;
         initRes.getA().setReward(initReward);
 //        System.out.println(newSatelliteState.getT());
@@ -85,7 +99,7 @@ public class SMDPPlanner {
             if(res.getA()==null) {
                 break;
             }
-            double reward = rewardFunction(newSatelliteState,res.getA(),getIncidenceAngle(res.getA()));
+            double reward = unweightedRewardFunction(newSatelliteState,res.getA(),getIncidenceAngle(res.getA()));
             res.getA().setReward(reward);
             totalScore = totalScore + reward;
             newSatelliteState = transitionFunction(newSatelliteState,res.getA());
@@ -96,20 +110,27 @@ public class SMDPPlanner {
 //            System.out.println(resultList.size());
 //            System.out.println(newSatelliteState.getImages());
         }
-        System.out.println("Total reward: "+totalScore);
         return resultList;
     }
 
     public double rewardFunction(SatelliteState s, SatelliteAction a, double incidenceAngle){
         GeodeticPoint gp = a.getLocation();
-        ArrayList<GeodeticPoint> newImageSet = s.getImages(); //System.out.println("nis "+newImageSet.size());
+        ArrayList<GeodeticPoint> newImageSet = s.getImages();
         double score = 0;
         if(!newImageSet.contains(gp)) {
             score = latestRewardGrid.get(gp);
-            score = score*(1-incidenceAngle); // use greedy planner's reward
-            //System.out.println("sco "+score);
-//            score = score*Math.pow(gamma,a.gettStart()-s.getT());
+            score = score * (1 - incidenceAngle);
+            score = score * Math.pow(gamma, a.gettStart() - s.getT());
         }
+        return score;
+    }
+
+    public double unweightedRewardFunction(SatelliteState s, SatelliteAction a, double incidenceAngle){
+        GeodeticPoint gp = a.getLocation();
+        ArrayList<GeodeticPoint> newImageSet = s.getImages();
+        double score = 0;
+        score = latestRewardGrid.get(gp);
+        score = score*(1-incidenceAngle);
         return score;
     }
 
@@ -124,50 +145,8 @@ public class SMDPPlanner {
         SatelliteState newS = new SatelliteState(t,tPrevious,newImageSet);
         return newS;
     }
-    public ArrayList<SatelliteAction> getActionSpace(SatelliteState s) {
-        double currentTime = s.getT();
-        double allowableTime = 15;
-        double lastAngle = 0.0;
-        boolean satisfied = false;
-        ArrayList<SatelliteAction> possibleActions = new ArrayList<>();
-        while(!satisfied) {
-            for (TopocentricFrame tf : sortedGPAccesses.keySet()) {
-                double[] riseandsets = sortedGPAccesses.get(tf).getRiseAndSetTimesList();
-                for (int j = 0; j < riseandsets.length; j = j + 2) {
-                    if (currentTime < riseandsets[j] && riseandsets[j] < currentTime+allowableTime) {
-                        SatelliteAction action = new SatelliteAction(riseandsets[j], riseandsets[j + 1], tf.getPoint());
-                        double newAngle = getIncidenceAngle(action);
-                        action.setAngle(newAngle);
-                        if(canSlew(lastAngle,newAngle,currentTime,riseandsets[j+1])) {
-                            possibleActions.add(action);
-                            lastAngle = newAngle;
-                        }
-                    }
-                }
-            }
-            if(possibleActions.size() < 5 && currentTime+allowableTime < 86400) {
-                allowableTime = allowableTime + 15;
-            } else {
-                satisfied = true;
-            }
-        }
-        return possibleActions;
-    }
-    public double getIncidenceAngle(SatelliteAction a) {
-        Map<Double, GeodeticPoint> sspMap = new HashMap<>();
-        GeodeticPoint point = a.getLocation();
-        double setTime = a.gettEnd();
-        double riseTime = a.gettStart();
-        for (Record<String> ind : groundTrack) {
-            String rawString = ind.getValue();
-            AbsoluteDate date = ind.getDate();
-            String[] splitString = rawString.split(",");
-            double latitude = Double.parseDouble(splitString[0]);
-            double longitude = Double.parseDouble(splitString[1]);
-            GeodeticPoint ssp = new GeodeticPoint(Math.toRadians(latitude),Math.toRadians(longitude),0);
-            double elapsedTime = date.durationFrom(startDate);
-            sspMap.put(elapsedTime,ssp);
-        }
+
+    public double getIncidenceAngle(GeodeticPoint point, double riseTime, double setTime, AbsoluteDate startDate, Satellite satellite, Collection<Record<String>> groundTrack) {
         double[] times = linspace(riseTime,setTime,(int)(setTime-riseTime));
         if(times.length<2) {
             times = new double[]{riseTime, setTime};
@@ -190,13 +169,61 @@ public class SMDPPlanner {
         }
         return Math.atan2(closestDist,(satellite.getOrbit().getA()-6370000)/1000);
     }
+    public ArrayList<SatelliteAction> getActionSpace(SatelliteState s) {
+        double currentTime = s.getT();
+        double allowableTime = 15;
+        boolean satisfied = false;
+        ArrayList<SatelliteAction> possibleActions = new ArrayList<>();
+        while(!satisfied) {
+            for (TopocentricFrame tf : sortedGPAccesses.keySet()) {
+                double[] riseandsets = sortedGPAccesses.get(tf).getRiseAndSetTimesList();
+                for (int j = 0; j < riseandsets.length; j = j + 2) {
+                    if (currentTime < riseandsets[j] && riseandsets[j] < currentTime+allowableTime) {
+                        double maxTorque = 4e-3;
+                        //double newAngle = Math.random();
+                        double newAngle = getIncidenceAngle(tf.getPoint(),riseandsets[j],riseandsets[j+1],startDate,satellite,groundTrack);
+                        double slewTorque = 4*Math.abs(newAngle-s.getCurrentAngle())*0.05/Math.pow(Math.abs(currentTime-riseandsets[j+1]),2);
+                        if(slewTorque > maxTorque) {
+                            continue;
+                        }
+                        SatelliteAction action = new SatelliteAction(riseandsets[j], riseandsets[j + 1], tf.getPoint(), "", 0.0, newAngle);
+                        possibleActions.add(action);
+                    }
+                }
+            }
+            if(possibleActions.size() < 5 && currentTime+allowableTime < 86400) {
+                allowableTime = allowableTime + 15;
+            } else {
+                satisfied = true;
+            }
+        }
+        return possibleActions;
+    }
+    public double getIncidenceAngle(SatelliteAction a) {
+        GeodeticPoint point = a.getLocation();
+        double setTime = a.gettEnd();
+        double riseTime = a.gettStart();
+        double[] times = linspace(riseTime,setTime,(int)(setTime-riseTime));
+        if(times.length<2) {
+            times = new double[]{riseTime, setTime};
+        }
 
-    public boolean canSlew(double angle1, double angle2, double time1, double time2){
-        double inertia = 2.66; // kg-m2
-        double slewTorque = 4*inertia*Math.abs(angle2-angle1)/Math.pow(Math.abs(time2-time1),2);
-        double maxTorque = 0.1; // Nm
-//        System.out.println(slewTorque);
-        return !(slewTorque > maxTorque);
+        double closestDist = 100000000000000000.0;
+        for (double time : times) {
+            double closestTime = 100 * 24 * 3600; // 100 days
+            GeodeticPoint closestPoint = null;
+            for (Double sspTime : sspMap.keySet()) {
+                if (Math.abs(sspTime - time) < closestTime) {
+                    closestTime = Math.abs(sspTime - time);
+                    closestPoint = sspMap.get(sspTime);
+                    double dist = Math.sqrt(Math.pow(LLAtoECI(closestPoint)[0] - LLAtoECI(point)[0], 2) + Math.pow(LLAtoECI(closestPoint)[1] - LLAtoECI(point)[1], 2) + Math.pow(LLAtoECI(closestPoint)[2] - LLAtoECI(point)[2], 2));
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                    }
+                }
+            }
+        }
+        return Math.atan2(closestDist,(satellite.getOrbit().getA()-6370000)/1000);
     }
 
     public double[] LLAtoECI(GeodeticPoint point) {
