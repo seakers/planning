@@ -104,7 +104,7 @@ public class XPlanner {
         BodyShape earthShape = new OneAxisEllipsoid(Constants.WGS84_EARTH_EQUATORIAL_RADIUS,
                 Constants.WGS84_EARTH_FLATTENING, earthFrame);
         TimeScale utc = TimeScalesFactory.getUTC();
-        AbsoluteDate startDate = new AbsoluteDate(2020, 1, 1, 0, 0, 00.000, utc);
+        AbsoluteDate startDate = new AbsoluteDate(2020, 1, 1, 1, 0, 00.000, utc);
         double mu = Constants.WGS84_EARTH_MU;
 
         // Initializing
@@ -113,7 +113,7 @@ public class XPlanner {
         double ssCrossFOVRadians = Math.toRadians(30.0);
         double ssAlongFOVRadians = Math.toRadians(1.0);
         NadirRectangularFOV ssFOV = new NadirRectangularFOV(ssCrossFOVRadians,ssAlongFOVRadians,0.0,earthShape);
-        Instrument visImager = new Instrument("Smallsat imager", ssFOV, 100.0, 100.0); // visbile imager
+        Instrument visImager = new Instrument("Smallsat imager", ssFOV, 100.0, 100.0); // visible imager
 //        Instrument altimeter = new Instrument("smallsat altimeter", ssFOV, 100.0, 100.0);
 //        Instrument TIRimager = new Instrument("smallsat TIR imager", ssFOV, 100.0, 100.0);
         ssPayload.add(visImager);

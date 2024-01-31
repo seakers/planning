@@ -47,7 +47,10 @@ public class SMDPPlanner {
         this.sspMap = sspMap;
         ArrayList<GeodeticPoint> initialImages = new ArrayList<>();
         ArrayList<StateAction> stateActions = null;
-        if (!sortedGPAccesses.isEmpty()){ stateActions = forwardSearch(new SatelliteState(0,0,initialImages));
+        if (sortedGPAccesses.size()>0){
+            if (sortedGPAccesses.size() == 1) {
+                System.out.println("huh");}
+            stateActions = forwardSearch(new SatelliteState(0,0,initialImages));
             ArrayList<Observation> observations = new ArrayList<>();
             for (StateAction stateAction : stateActions) {
                 Observation newObs = new Observation(stateAction.getA().getLocation(),stateAction.getA().gettStart(),stateAction.getA().gettEnd(), stateAction.getA().getAngle(),stateAction.getA().getReward());
@@ -179,10 +182,11 @@ public class SMDPPlanner {
                 double[] riseandsets = sortedGPAccesses.get(tf).getRiseAndSetTimesList();
                 for (int j = 0; j < riseandsets.length; j = j + 2) {
                     if (currentTime < riseandsets[j] && riseandsets[j] < currentTime+allowableTime) {
-                        double maxTorque = 4e-3;
+                        double maxTorque = 0.1; // Nm
+                        double inertia = 2.66; // kg-m2
                         //double newAngle = Math.random();
                         double newAngle = getIncidenceAngle(tf.getPoint(),riseandsets[j],riseandsets[j+1],startDate,satellite,groundTrack);
-                        double slewTorque = 4*Math.abs(newAngle-s.getCurrentAngle())*0.05/Math.pow(Math.abs(currentTime-riseandsets[j+1]),2);
+                        double slewTorque = 4*Math.abs(newAngle-s.getCurrentAngle())*inertia/Math.pow(Math.abs(currentTime-riseandsets[j+1]),2);
                         if(slewTorque > maxTorque) {
                             continue;
                         }
