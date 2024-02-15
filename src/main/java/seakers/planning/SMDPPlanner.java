@@ -5,6 +5,7 @@ import org.orekit.frames.TopocentricFrame;
 import org.orekit.time.AbsoluteDate;
 import seakers.orekit.analysis.Record;
 import seakers.orekit.coverage.access.TimeIntervalArray;
+import seakers.orekit.object.Instrument;
 import seakers.orekit.object.Satellite;
 
 import java.util.*;
@@ -24,7 +25,7 @@ public class SMDPPlanner {
     private Map<Double, GeodeticPoint> sspMap;
 
     public SMDPPlanner(Satellite satellite, Map<TopocentricFrame, TimeIntervalArray> sortedGPAccesses, TimeIntervalArray downlinks, AbsoluteDate startDate, Map<Double,Map<GeodeticPoint,Double>> covPointRewards, Collection<Record<String>> groundTrack, double duration) {
-        this.satellite = satellite;
+        this.satellite = satellite; System.out.println(satellite.getName());
         this.sortedGPAccesses = sortedGPAccesses;
         this.downlinks = downlinks;
         this.startDate = startDate;
@@ -47,9 +48,7 @@ public class SMDPPlanner {
         this.sspMap = sspMap;
         ArrayList<GeodeticPoint> initialImages = new ArrayList<>();
         ArrayList<StateAction> stateActions = null;
-        if (sortedGPAccesses.size()>0){
-            if (sortedGPAccesses.size() == 1) {
-                System.out.println("huh");}
+        if (sortedGPAccesses.size() > dSolveInit){ System.out.println(sortedGPAccesses.size());
             stateActions = forwardSearch(new SatelliteState(0,0,initialImages));
             ArrayList<Observation> observations = new ArrayList<>();
             for (StateAction stateAction : stateActions) {
@@ -84,15 +83,19 @@ public class SMDPPlanner {
     }
     public ArrayList<StateAction> forwardSearch(SatelliteState initialState) {
         ArrayList<StateAction> resultList = new ArrayList<>();
+        HashMap<GeodeticPoint, ArrayList<Instrument>> imageSensorMap = new HashMap<>();
+
         latestRewardGrid = covPointRewards.get(0.0);
         ActionResult initRes = SelectAction(initialState,dSolveInit);
+        imageSensorMap.put(initRes.getA().getLocation(), satellite.getPayload());
+
         SatelliteState newSatelliteState = transitionFunction(initialState,initRes.getA());
-        resultList.add(new StateAction(initialState,initRes.getA()));
         double value = initRes.getV();
-        double initReward = rewardFunction(newSatelliteState,initRes.getA(),getIncidenceAngle(initRes.getA()));
+        double initReward = unweightedRewardFunction(newSatelliteState,initRes.getA(),imageSensorMap,getIncidenceAngle(initRes.getA()));
         //double initReward = rewardFunction(newSatelliteState,initRes.getA(),Math.random());
         double totalScore = initReward;
         initRes.getA().setReward(initReward);
+        resultList.add(new StateAction(initialState,initRes.getA()));
 //        System.out.println(newSatelliteState.getT());
 //        System.out.println(totalScore);
 //        System.out.println(resultList.size());
@@ -102,7 +105,9 @@ public class SMDPPlanner {
             if(res.getA()==null) {
                 break;
             }
-            double reward = unweightedRewardFunction(newSatelliteState,res.getA(),getIncidenceAngle(res.getA()));
+
+            imageSensorMap.put(res.getA().getLocation(), satellite.getPayload());
+            double reward = unweightedRewardFunction(newSatelliteState,res.getA(),imageSensorMap,getIncidenceAngle(res.getA()));
             res.getA().setReward(reward);
             totalScore = totalScore + reward;
             newSatelliteState = transitionFunction(newSatelliteState,res.getA());
@@ -120,20 +125,33 @@ public class SMDPPlanner {
         GeodeticPoint gp = a.getLocation();
         ArrayList<GeodeticPoint> newImageSet = s.getImages();
         double score = 0;
-        if(!newImageSet.contains(gp)) {
+//        if(!newImageSet.contains(gp)) { // UNIQUE OBSERVATIONS
             score = latestRewardGrid.get(gp);
             score = score * (1 - incidenceAngle);
             score = score * Math.pow(gamma, a.gettStart() - s.getT());
-        }
+//        }
         return score;
     }
 
-    public double unweightedRewardFunction(SatelliteState s, SatelliteAction a, double incidenceAngle){
+    public double unweightedRewardFunction(SatelliteState s, SatelliteAction a, HashMap<GeodeticPoint, ArrayList<Instrument>> imageSensorMap, double incidenceAngle){
         GeodeticPoint gp = a.getLocation();
+
+        // used for slewing only problem
         ArrayList<GeodeticPoint> newImageSet = s.getImages();
         double score = 0;
         score = latestRewardGrid.get(gp);
-        score = score*(1-incidenceAngle);
+        score = score * (1 - incidenceAngle);
+
+        // used for slewing and reward problem
+//        ArrayList<Instrument> pastSensors = imageSensorMap.get(gp);
+//        // System.out.println(gp); System.out.println(pastSensors);
+//
+//        double score = 0;
+//        if (!pastSensors.contains(satellite.getPayload())) {
+//            score = latestRewardGrid.get(gp);
+//            score = score * (1 - incidenceAngle);
+//        }
+
         return score;
     }
 

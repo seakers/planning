@@ -104,21 +104,20 @@ public class XPlanner {
         BodyShape earthShape = new OneAxisEllipsoid(Constants.WGS84_EARTH_EQUATORIAL_RADIUS,
                 Constants.WGS84_EARTH_FLATTENING, earthFrame);
         TimeScale utc = TimeScalesFactory.getUTC();
-        AbsoluteDate startDate = new AbsoluteDate(2020, 1, 1, 1, 0, 00.000, utc);
+        AbsoluteDate startDate = new AbsoluteDate(2020, 1, 1, 0, 0, 00.000, utc);
         double mu = Constants.WGS84_EARTH_MU;
 
         // Initializing
         ArrayList<Satellite> imagers = new ArrayList<>();
-        Collection<Instrument> ssPayload = new ArrayList<>();
+        Collection<Instrument> ssPayload0 = new ArrayList<>();
+        Collection<Instrument> ssPayload1 = new ArrayList<>();
+        Collection<Instrument> ssPayload2 = new ArrayList<>();
         double ssCrossFOVRadians = Math.toRadians(30.0);
         double ssAlongFOVRadians = Math.toRadians(1.0);
         NadirRectangularFOV ssFOV = new NadirRectangularFOV(ssCrossFOVRadians,ssAlongFOVRadians,0.0,earthShape);
-        Instrument visImager = new Instrument("Smallsat imager", ssFOV, 100.0, 100.0); // visible imager
-//        Instrument altimeter = new Instrument("smallsat altimeter", ssFOV, 100.0, 100.0);
-//        Instrument TIRimager = new Instrument("smallsat TIR imager", ssFOV, 100.0, 100.0);
-        ssPayload.add(visImager);
-//        ssPayload.add(altimeter);
-//        ssPayload.add(TIRimager);
+        ssPayload0.add(new Instrument("Smallsat imager", ssFOV, 100.0, 100.0)); // visible imager
+        ssPayload1.add(new Instrument("smallsat TIR imager", ssFOV, 100.0, 100.0)); // thermal infrared imager
+        ssPayload2.add(new Instrument("smallsat altimeter", ssFOV, 100.0, 100.0)); // altimeter
         int r = 1; // # planes?
         int s = 5; // # satellites
         for(int m = 0; m < r; m++) {
@@ -133,12 +132,17 @@ public class XPlanner {
                 Orbit ssOrbit = new KeplerianOrbit(6378000+500000, 0.0, FastMath.toRadians(90), 0.0, FastMath.toRadians(RAAN), FastMath.toRadians(anom), PositionAngle.MEAN, inertialFrame, startDate, mu);
 //                TransmitterAntenna tx = new TransmitterAntenna(1.0,Collections.singleton(S));
 //                ReceiverAntenna rx = new ReceiverAntenna(1.0,Collections.singleton(S));
-                Satellite smallsat = new Satellite("smallsat"+m+n, ssOrbit, ssPayload);
+                Collection ssPayload = null;
+                if (n==0 || n==3){ssPayload = ssPayload0;}
+                if (n==1 || n==4){ssPayload = ssPayload1;}
+                if (n==2){ssPayload = ssPayload2;}
+
+                Satellite smallsat = new Satellite("smallsat"+m+n, ssOrbit, ssPayload); System.out.println(n);System.out.println(ssPayload);
                 imagers.add(smallsat);
 //                System.out.println(RAAN);
 //                System.out.println(anom);
             }
-        }
+        } //System.out.println(imagers.get(imagers.).getPayload());
 //        double duration = 1; // in days, i.e. 1 is for full 24 hours
 //        double duration = 0.5; // 12 hours
 //        double duration = 0.41666666666667; // 10 hours, 350
@@ -181,7 +185,6 @@ public class XPlanner {
         allGPs.addAll(initialCovPointRewards.keySet());
         Set<GndStation> nenStations = initializeNEN(earthShape);
 
-
         HashMap<Satellite, Map<TopocentricFrame, TimeIntervalArray>> satelliteGPContacts = new HashMap<>();
         ArrayList<GeodeticPoint> possibleGPs = new ArrayList<>();
         HashMap<Satellite,TimeIntervalArray> downlinkOpps = new HashMap<>();
@@ -210,24 +213,21 @@ public class XPlanner {
         List<String[]> obsLines = new ArrayList<>();
         obsLines.add(new String[]
                 { "sat", "lat", "lon", "rise_time", "set_time", "incidence_angle", "reward" });
+        List<String[]> rewLines = new ArrayList<>();
+        rewLines.add(new String[]  { "lat", "lon", "reward" });
         for (Satellite imager : imagers) {
             Map<TopocentricFrame, TimeIntervalArray> sortedGPAccesses = satelliteGPContacts.get(imager);
             TimeIntervalArray downlinks = downlinkOpps.get(imager);
             Collection<Record<String>> groundTrack = getGroundTrack(imager.getOrbit(),duration,startDate);
-//            long startUsedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(); // calc memory used before exec
             long start = System.nanoTime();
             SMDPPlanner smdpPlanner = new SMDPPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,duration);
             ArrayList<Observation> smdpOutput = smdpPlanner.getResults();
 
 //            ArrayList<Observation> planOutput = greedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack);
-//            long endUsedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(); // calc memory after code exec
             long end = System.nanoTime();
             double runtime = (end - start) / Math.pow(10, 9);
             totalRuntime = runtime + totalRuntime;
             System.out.printf("Planner took %.4f sec\n", runtime);
-//            System.out.println("Start mem: "+startUsedMemory/(1024*1024));
-//            System.out.println("End mem: "+endUsedMemory/(1024*1024));
-//            System.out.println("Planner used "+ (endUsedMemory - startUsedMemory)/(1024*1024) +" MB of memory");
             //ArrayList<Observation> planOutput = smarterGreedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,duration);
             //ArrayList<Observation> planOutput = nadirEval(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack);
             individualPlans.add(smdpOutput);
@@ -245,6 +245,11 @@ public class XPlanner {
                         {imager.getName(), String.valueOf(obs.getObservationPoint().getLatitude()), String.valueOf(obs.getObservationPoint().getLongitude()), String.valueOf(obs.getObservationStart()), String.valueOf(obs.getObservationEnd()), String.valueOf(obs.getObservationAngle()), String.valueOf(obs.getObservationReward())});
             }
         }
+        for (Map.Entry<GeodeticPoint, Double> initRew : initialCovPointRewards.entrySet()){
+            rewLines.add(new String[]
+                    {String.valueOf(initRew.getKey().getLatitude()), String.valueOf(initRew.getKey().getLongitude()), String.valueOf(initRew.getValue())});
+        }
+
         File csvOutputFile = new File("accesses.csv");
         try (PrintWriter pw = new PrintWriter(csvOutputFile)) {
             dataLines.stream()
@@ -254,6 +259,12 @@ public class XPlanner {
         File obsOutputFile = new File("obs.csv");
         try (PrintWriter pw = new PrintWriter(obsOutputFile)) {
             obsLines.stream()
+                    .map(XPlanner::convertToCSV)
+                    .forEach(pw::println);
+        }
+        File rewardOutputFile = new File("reward.csv");
+        try (PrintWriter pw = new PrintWriter(rewardOutputFile)) {
+            rewLines.stream()
                     .map(XPlanner::convertToCSV)
                     .forEach(pw::println);
         }
@@ -299,8 +310,7 @@ public class XPlanner {
     }
 
     public static ArrayList<Observation> greedyPlanner(Satellite satellite, Map<TopocentricFrame, TimeIntervalArray> sortedAccesses, TimeIntervalArray downlinks, AbsoluteDate startDate, Map<Double,Map<GeodeticPoint,Double>> covPointRewards, Collection<Record<String>> groundTrack) {
-
-        long startUsedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(); // calc memory used before exec
+        System.out.println(sortedAccesses.size());
 
         double currentTime = 0;
         ArrayList<Observation> observations = new ArrayList<>();
@@ -366,12 +376,7 @@ public class XPlanner {
             observations.add(obs);
             currentTime = bestSetTime;
             //System.out.println(energy/3600);
-//            long endUsedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(); // calc memory after code exec
-//            System.out.println("Planner used1 "+ (endUsedMemory - startUsedMemory)/(1024*1024) +" MB of memory");
         }
-        System.out.println("Total reward: "+totalreward);
-        long endUsedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(); // calc memory after code exec
-        System.out.println("Planner used2 "+ (endUsedMemory - startUsedMemory)/(1024*1024) +" MB of memory");
         return observations;
     }
     public static ArrayList<Observation> nadirEval(Satellite satellite, Map<TopocentricFrame, TimeIntervalArray> sortedAccesses, TimeIntervalArray downlinks, AbsoluteDate startDate, Map<Double,Map<GeodeticPoint,Double>> covPointRewards, Collection<Record<String>> groundTrack) {
