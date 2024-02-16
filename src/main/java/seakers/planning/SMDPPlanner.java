@@ -14,7 +14,8 @@ public class SMDPPlanner {
     private ArrayList<Observation> results;
     private Satellite satellite;
     private Collection<Record<String>> groundTrack;
-    private double duration;
+    private double startTime;
+    private double endTime;
     private Map<Double,Map<GeodeticPoint,Double>> covPointRewards;
     private Map<TopocentricFrame, TimeIntervalArray> sortedGPAccesses;
     private TimeIntervalArray downlinks;
@@ -24,15 +25,16 @@ public class SMDPPlanner {
     private Map<GeodeticPoint,Double> latestRewardGrid;
     private Map<Double, GeodeticPoint> sspMap;
 
-    public SMDPPlanner(Satellite satellite, Map<TopocentricFrame, TimeIntervalArray> sortedGPAccesses, TimeIntervalArray downlinks, AbsoluteDate startDate, Map<Double,Map<GeodeticPoint,Double>> covPointRewards, Collection<Record<String>> groundTrack, double duration) {
-        this.satellite = satellite; System.out.println(satellite.getName());
+    public SMDPPlanner(Satellite satellite, Map<TopocentricFrame, TimeIntervalArray> sortedGPAccesses, TimeIntervalArray downlinks, AbsoluteDate startDate, Map<Double,Map<GeodeticPoint,Double>> covPointRewards, Collection<Record<String>> groundTrack, double startTime, double endTime) {
+        this.satellite = satellite; //System.out.println(satellite.getName());
         this.sortedGPAccesses = sortedGPAccesses;
         this.downlinks = downlinks;
         this.startDate = startDate;
         this.covPointRewards = covPointRewards;
         this.groundTrack = groundTrack;
-        this.duration = duration;
-        this.gamma = 0.999;
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.gamma = 0.75;
         this.dSolveInit = 2;
         Map<Double, GeodeticPoint> sspMap = new HashMap<>();
         for (Record<String> ind : groundTrack) {
@@ -48,8 +50,8 @@ public class SMDPPlanner {
         this.sspMap = sspMap;
         ArrayList<GeodeticPoint> initialImages = new ArrayList<>();
         ArrayList<StateAction> stateActions = null;
-        if (sortedGPAccesses.size() > dSolveInit){ System.out.println(sortedGPAccesses.size());
-            stateActions = forwardSearch(new SatelliteState(0,0,initialImages));
+        if (sortedGPAccesses.size() > dSolveInit){ //System.out.println(sortedGPAccesses.size());
+            stateActions = forwardSearch(new SatelliteState(startTime,startTime,initialImages));
             ArrayList<Observation> observations = new ArrayList<>();
             for (StateAction stateAction : stateActions) {
                 Observation newObs = new Observation(stateAction.getA().getLocation(),stateAction.getA().gettStart(),stateAction.getA().gettEnd(), stateAction.getA().getAngle(),stateAction.getA().getReward());
@@ -64,7 +66,7 @@ public class SMDPPlanner {
             return new ActionResult(null,0);
         }
         ActionResult res = new ActionResult(null,Double.NEGATIVE_INFINITY);
-        SatelliteState sCopy = new SatelliteState(s.getT(),s.gettPrevious(),s.getImages());
+        SatelliteState sCopy = new SatelliteState(s.getT(),s.gettPrevious(),s.getImages(),s.getCurrentAngle());
         ArrayList<SatelliteAction> feasibleActions = getActionSpace(sCopy);
         for (int a = 0; a < feasibleActions.size(); a++) {
             double value = 0;
@@ -87,6 +89,10 @@ public class SMDPPlanner {
 
         latestRewardGrid = covPointRewards.get(0.0);
         ActionResult initRes = SelectAction(initialState,dSolveInit);
+        if (initRes.getA() == null) {
+            System.out.println("no possible actions!");
+            return resultList;
+        }
         imageSensorMap.put(initRes.getA().getLocation(), satellite.getPayload());
 
         SatelliteState newSatelliteState = transitionFunction(initialState,initRes.getA());
@@ -163,7 +169,7 @@ public class SMDPPlanner {
         if(!s.getImages().contains(location)) {
             newImageSet.add(location);
         }
-        SatelliteState newS = new SatelliteState(t,tPrevious,newImageSet);
+        SatelliteState newS = new SatelliteState(t,tPrevious,newImageSet,a.getAngle());
         return newS;
     }
 
@@ -206,6 +212,7 @@ public class SMDPPlanner {
                         double newAngle = getIncidenceAngle(tf.getPoint(),riseandsets[j],riseandsets[j+1],startDate,satellite,groundTrack);
                         double slewTorque = 4*Math.abs(newAngle-s.getCurrentAngle())*inertia/Math.pow(Math.abs(currentTime-riseandsets[j+1]),2);
                         if(slewTorque > maxTorque) {
+                            //System.out.println("Can't slew! Last angle: "+s.getCurrentAngle()+", new angle: "+newAngle+". Last time: "+currentTime+", new time: "+riseandsets[j+1]);
                             continue;
                         }
                         SatelliteAction action = new SatelliteAction(riseandsets[j], riseandsets[j + 1], tf.getPoint(), "", 0.0, newAngle);
@@ -213,7 +220,7 @@ public class SMDPPlanner {
                     }
                 }
             }
-            if(possibleActions.size() < 5 && currentTime+allowableTime < 86400) {
+            if(possibleActions.size() < 5  && currentTime+allowableTime < endTime) {
                 allowableTime = allowableTime + 15;
             } else {
                 satisfied = true;

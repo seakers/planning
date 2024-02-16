@@ -31,6 +31,12 @@ public class SatelliteState {
         this.tPrevious = tPrevious;
         this.images = images;
     }
+    public SatelliteState (double t, double tPrevious, ArrayList<GeodeticPoint> images, double currentAngle) {
+        this.t = t;
+        this.tPrevious = tPrevious;
+        this.images = images;
+        this.currentAngle = currentAngle;
+    }
     public SatelliteState (double t, double tPrevious, ArrayList<SatelliteAction> actionHistory, double batteryCharge, double dataStored, double currentAngle, double storedImageReward) {
         this.t = t;
         this.tPrevious = tPrevious;
@@ -90,4 +96,8 @@ public class SatelliteState {
     public ArrayList<EventObservation> getEventObservations() { return eventObservations; }
     public ArrayList<String> getCrosslinkLog() { return crosslinkLog; }
     public ArrayList<String> getDownlinkLog() { return downlinkLog; }
+
+    public void setCurrentAngle(double angle) {
+        currentAngle = angle;
+    }
 }

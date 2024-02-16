@@ -143,14 +143,14 @@ public class XPlanner {
 //                System.out.println(anom);
             }
         } //System.out.println(imagers.get(imagers.).getPayload());
-//        double duration = 1; // in days, i.e. 1 is for full 24 hours
+        double duration = 1; // in days, i.e. 1 is for full 24 hours
 //        double duration = 0.5; // 12 hours
 //        double duration = 0.41666666666667; // 10 hours, 350
 //        double duration = 0.33333333333333; // 8 hours, 300
 //        double duration = 0.25; // 6 hours, 250
 //        double duration = 0.16666666666667; // 4 hours, 400
 //        double duration = 0.08333333333333; // 2 hours, 200
-        double duration = 0.04166666666667; // 1 hour, 100
+        //double duration = 0.04166666666667; // 1 hour, 100
 
         double totalRuntime = 0;
         Map<Double,Map<GeodeticPoint,Double>> covPointRewards = new HashMap<>();
@@ -215,22 +215,24 @@ public class XPlanner {
                 { "sat", "lat", "lon", "rise_time", "set_time", "incidence_angle", "reward" });
         List<String[]> rewLines = new ArrayList<>();
         rewLines.add(new String[]  { "lat", "lon", "reward" });
+        double startTime = 3600;
+        double endTime = 7200;
         for (Satellite imager : imagers) {
             Map<TopocentricFrame, TimeIntervalArray> sortedGPAccesses = satelliteGPContacts.get(imager);
             TimeIntervalArray downlinks = downlinkOpps.get(imager);
             Collection<Record<String>> groundTrack = getGroundTrack(imager.getOrbit(),duration,startDate);
             long start = System.nanoTime();
-            SMDPPlanner smdpPlanner = new SMDPPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,duration);
-            ArrayList<Observation> smdpOutput = smdpPlanner.getResults();
+            SMDPPlanner smdpPlanner = new SMDPPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,startTime,endTime);
+            ArrayList<Observation> planOutput = smdpPlanner.getResults();
 
-//            ArrayList<Observation> planOutput = greedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack);
+            //ArrayList<Observation> planOutput = greedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,startTime,endTime);
             long end = System.nanoTime();
             double runtime = (end - start) / Math.pow(10, 9);
             totalRuntime = runtime + totalRuntime;
             System.out.printf("Planner took %.4f sec\n", runtime);
             //ArrayList<Observation> planOutput = smarterGreedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,duration);
             //ArrayList<Observation> planOutput = nadirEval(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack);
-            individualPlans.add(smdpOutput);
+            individualPlans.add(planOutput);
 //            allObservations.addAll(planOutput);
             for (TopocentricFrame tf : sortedGPAccesses.keySet()) {
                 TimeIntervalArray tia = sortedGPAccesses.get(tf);
@@ -240,7 +242,7 @@ public class XPlanner {
                             { imager.getName(), String.valueOf(tf.getPoint().getLatitude()), String.valueOf(tf.getPoint().getLongitude()), String.valueOf(tia.getRiseAndSetTimesList()[i]), String.valueOf(tia.getRiseAndSetTimesList()[i+1]), String.valueOf(incidenceAngle), String.valueOf(rewardFunction(tf,incidenceAngle,initialCovPointRewards)) });
                 }
             }
-            for(Observation obs : smdpOutput) {
+            for(Observation obs : planOutput) {
                 obsLines.add(new String[]
                         {imager.getName(), String.valueOf(obs.getObservationPoint().getLatitude()), String.valueOf(obs.getObservationPoint().getLongitude()), String.valueOf(obs.getObservationStart()), String.valueOf(obs.getObservationEnd()), String.valueOf(obs.getObservationAngle()), String.valueOf(obs.getObservationReward())});
             }
@@ -309,10 +311,10 @@ public class XPlanner {
 
     }
 
-    public static ArrayList<Observation> greedyPlanner(Satellite satellite, Map<TopocentricFrame, TimeIntervalArray> sortedAccesses, TimeIntervalArray downlinks, AbsoluteDate startDate, Map<Double,Map<GeodeticPoint,Double>> covPointRewards, Collection<Record<String>> groundTrack) {
+    public static ArrayList<Observation> greedyPlanner(Satellite satellite, Map<TopocentricFrame, TimeIntervalArray> sortedAccesses, TimeIntervalArray downlinks, AbsoluteDate startDate, Map<Double,Map<GeodeticPoint,Double>> covPointRewards, Collection<Record<String>> groundTrack, double startTime, double endTime) {
         System.out.println(sortedAccesses.size());
 
-        double currentTime = 0;
+        double currentTime = startTime;
         ArrayList<Observation> observations = new ArrayList<>();
         ArrayList<TopocentricFrame> recentTFs = new ArrayList<>();
         double maxTorque = 0.1; // Nm, BCT XACT 4e-3
@@ -338,6 +340,9 @@ public class XPlanner {
                     }
                 }
                 if(riseTime <= currentTime || recent) {
+                    continue;
+                }
+                if(riseTime > endTime) {
                     continue;
                 }
                 double newAngle = getIncidenceAngle(tf.getPoint(),riseTime,setTime,startDate,satellite,groundTrack);
@@ -377,6 +382,7 @@ public class XPlanner {
             currentTime = bestSetTime;
             //System.out.println(energy/3600);
         }
+        //System.out.println("Total reward: "+totalreward);
         return observations;
     }
     public static ArrayList<Observation> nadirEval(Satellite satellite, Map<TopocentricFrame, TimeIntervalArray> sortedAccesses, TimeIntervalArray downlinks, AbsoluteDate startDate, Map<Double,Map<GeodeticPoint,Double>> covPointRewards, Collection<Record<String>> groundTrack) {
