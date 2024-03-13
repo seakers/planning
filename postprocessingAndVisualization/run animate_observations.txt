@@ -1,0 +1,8 @@
+open command terminal in this folder
+
+run:
+python animate_observations_by_time.py "C:\path\to\folder\only\containing\current csv"
+OR
+python plot_observations.py "C:\path\to\folder\only\containing\current csv"
+
+with only ONE csv in the path folder

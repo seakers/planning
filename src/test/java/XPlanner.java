@@ -3,6 +3,7 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -86,7 +87,7 @@ public class XPlanner {
                 .collect(Collectors.joining(","));
     }
 
-    public static void main(String[] args) throws FileNotFoundException {
+    public static void main(String[] args) throws FileNotFoundException, InterruptedException {
 
         // Orekit initialization needs
         OrekitConfig.init(4);
@@ -119,7 +120,7 @@ public class XPlanner {
         ssPayload1.add(new Instrument("smallsat TIR imager", ssFOV, 100.0, 100.0)); // thermal infrared imager
         ssPayload2.add(new Instrument("smallsat altimeter", ssFOV, 100.0, 100.0)); // altimeter
         int r = 1; // # planes?
-        int s = 5; // # satellites
+        int s = 10; // # satellites
         for(int m = 0; m < r; m++) {
             for(int n = 0; n < s; n++) {
                 int pu = 360 / (r*s);
@@ -133,9 +134,9 @@ public class XPlanner {
 //                TransmitterAntenna tx = new TransmitterAntenna(1.0,Collections.singleton(S));
 //                ReceiverAntenna rx = new ReceiverAntenna(1.0,Collections.singleton(S));
                 Collection ssPayload = null;
-                if (n==0 || n==3){ssPayload = ssPayload0;}
-                if (n==1 || n==4){ssPayload = ssPayload1;}
-                if (n==2){ssPayload = ssPayload2;}
+                if (n==0 || n==3 || n==6 || n==9){ssPayload = ssPayload0;}
+                if (n==1 || n==4 || n==7){ssPayload = ssPayload1;}
+                if (n==2 || n==5 || n==8){ssPayload = ssPayload2;}
 
                 Satellite smallsat = new Satellite("smallsat"+m+n, ssOrbit, ssPayload); System.out.println(n);System.out.println(ssPayload);
                 imagers.add(smallsat);
@@ -150,7 +151,7 @@ public class XPlanner {
 //        double duration = 0.25; // 6 hours, 250
 //        double duration = 0.16666666666667; // 4 hours, 400
 //        double duration = 0.08333333333333; // 2 hours, 200
-        //double duration = 0.04166666666667; // 1 hour, 100
+//        double duration = 0.04166666666667; // 1 hour, 100
 
         double totalRuntime = 0;
         Map<Double,Map<GeodeticPoint,Double>> covPointRewards = new HashMap<>();
@@ -215,8 +216,8 @@ public class XPlanner {
                 { "sat", "lat", "lon", "rise_time", "set_time", "incidence_angle", "reward" });
         List<String[]> rewLines = new ArrayList<>();
         rewLines.add(new String[]  { "lat", "lon", "reward" });
-        double startTime = 3600;
-        double endTime = 7200;
+        double startTime = 3600*0;
+        double endTime = startTime+(1*3600);
         for (Satellite imager : imagers) {
             Map<TopocentricFrame, TimeIntervalArray> sortedGPAccesses = satelliteGPContacts.get(imager);
             TimeIntervalArray downlinks = downlinkOpps.get(imager);
@@ -225,15 +226,15 @@ public class XPlanner {
             SMDPPlanner smdpPlanner = new SMDPPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,startTime,endTime);
             ArrayList<Observation> planOutput = smdpPlanner.getResults();
 
-            //ArrayList<Observation> planOutput = greedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,startTime,endTime);
+//            ArrayList<Observation> planOutput = greedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,startTime,endTime);
             long end = System.nanoTime();
             double runtime = (end - start) / Math.pow(10, 9);
             totalRuntime = runtime + totalRuntime;
             System.out.printf("Planner took %.4f sec\n", runtime);
             //ArrayList<Observation> planOutput = smarterGreedyPlanner(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack,duration);
             //ArrayList<Observation> planOutput = nadirEval(imager,sortedGPAccesses,downlinks,startDate,covPointRewards,groundTrack);
-            individualPlans.add(planOutput);
-//            allObservations.addAll(planOutput);
+            individualPlans.add(planOutput); // forward search obs out
+//            allObservations.addAll(planOutput); // greedy obs out
             for (TopocentricFrame tf : sortedGPAccesses.keySet()) {
                 TimeIntervalArray tia = sortedGPAccesses.get(tf);
                 for (int i = 0; i < tia.getRiseAndSetTimesList().length; i=i+2) {

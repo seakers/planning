@@ -34,7 +34,7 @@ public class SMDPPlanner {
         this.groundTrack = groundTrack;
         this.startTime = startTime;
         this.endTime = endTime;
-        this.gamma = 0.75;
+        this.gamma = 0.999;
         this.dSolveInit = 2;
         Map<Double, GeodeticPoint> sspMap = new HashMap<>();
         for (Record<String> ind : groundTrack) {
@@ -50,7 +50,7 @@ public class SMDPPlanner {
         this.sspMap = sspMap;
         ArrayList<GeodeticPoint> initialImages = new ArrayList<>();
         ArrayList<StateAction> stateActions = null;
-        if (sortedGPAccesses.size() > dSolveInit){ //System.out.println(sortedGPAccesses.size());
+        if (sortedGPAccesses.size() > dSolveInit){ System.out.println(sortedGPAccesses.size());
             stateActions = forwardSearch(new SatelliteState(startTime,startTime,initialImages));
             ArrayList<Observation> observations = new ArrayList<>();
             for (StateAction stateAction : stateActions) {
